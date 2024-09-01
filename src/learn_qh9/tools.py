@@ -4,6 +4,8 @@ import lmdb
 import numpy as np
 from ase.db.core import connect
 from ase.atoms import Atoms
+from apsw import Connection
+from tqdm import tqdm
 
 
 def parse_lmdb_info_2_readable(value):
@@ -68,4 +70,30 @@ def get_lmdb_size(lmdb_path: str):
     return size
 
 
-
+def raw_db_2_lmdb(raw_db_path: str, lmdb_folder_path: str, batch_size: int = 1000):
+    connection = Connection(raw_db_path)
+    cursor = connection.cursor()
+    total_rows = cursor.execute("SELECT COUNT(*) FROM data").fetchone()[0]
+    db_env = lmdb.open(lmdb_folder_path, map_size=1048576000000, lock=True)
+    with db_env.begin(write=True) as txn:
+        offset = 0
+        pbar = tqdm(total=total_rows, desc="Processing rows")
+        while True:
+            cursor.execute(f"SELECT * FROM data LIMIT {batch_size} OFFSET {offset}")
+            batch = cursor.fetchall()
+            if not batch:
+                break
+            for row in batch:
+                ori_data_dict = {
+                    'id': row[0],
+                    'num_nodes': row[1],
+                    'atoms': row[2],
+                    'pos': row[3],  # ang
+                    'Ham': row[4]
+                }
+                data_dict = pickle.dumps(ori_data_dict)
+                txn.put(ori_data_dict['id'].to_bytes(length=4, byteorder='big'), data_dict)
+                pbar.update(1)
+            offset += batch_size
+        pbar.close()
+    db_env.close()
