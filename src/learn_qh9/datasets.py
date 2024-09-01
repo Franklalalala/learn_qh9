@@ -1,26 +1,16 @@
-import shutil
-from typing import Optional, List
-
 import os
-import lmdb
-import random
-import torch
-import numpy as np
 import os.path as osp
-from argparse import Namespace
 import pickle
-import gdown
+import shutil
+from argparse import Namespace
 
-from tqdm import tqdm
-from apsw import Connection
-import torch.nn.functional as F
-from torch_geometric.utils import scatter
-from torch_geometric.data import (InMemoryDataset, download_url, extract_zip, Data)
+import lmdb
+import numpy as np
+import torch
 from learn_qh9.tools import get_lmdb_size, get_readable_info_from_lmdb
+from torch_geometric.data import InMemoryDataset, Data
 
 BOHR2ANG = 1.8897259886
-
-GoogleDriveLink = 'https://drive.google.com/drive/u/0/folders/1LXTC8uaOQzmb76FsuGfwSocAbK5Hshfj'
 
 convention_dict = {
     'pyscf_631G': Namespace(
@@ -110,7 +100,8 @@ def matrix_transform(matrices, atoms, convention='pyscf_631G'):
 
 
 class CustomizedQH9Stable(InMemoryDataset):
-    def __init__(self, src_lmdb_folder_path: str, db_workbase='datasets/', split='random', transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, src_lmdb_folder_path: str, db_workbase='datasets/', split='random', transform=None,
+                 pre_transform=None, pre_filter=None):
         self.src_lmdb_folder_path = src_lmdb_folder_path
         db_workbase = os.path.abspath(db_workbase)
         self.root = osp.join(db_workbase, 'QH9Stable')
@@ -136,7 +127,7 @@ class CustomizedQH9Stable(InMemoryDataset):
 
     def process(self):
         new_db_folder_path = os.path.join(self.processed_dir, 'QH9Stable.lmdb')
-        shutil.copy(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+        shutil.copytree(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
         if self.split == 'random':
             print('Random splitting...')
             data_ratio = [0.8, 0.1, 0.1]
@@ -243,4 +234,3 @@ class CustomizedQH9Stable(InMemoryDataset):
             data = self.get_mol(atoms, pos, Ham)
         db_env.close()
         return data
-
