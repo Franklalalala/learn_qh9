@@ -52,7 +52,7 @@ class Trainer:
             self.device = torch.device('cpu')
 
     def setup_output_directories(self):
-        self.output_dir = self.params['general']['output_dir']
+        self.output_dir = os.path.abspath(self.params['general']['output_dir'])
         self.log_dir = os.path.join(self.output_dir, 'logs')
         self.ckpt_dir = os.path.join(self.output_dir, 'checkpoints')
         self.data_dir = os.path.join(self.output_dir, 'data')
@@ -63,7 +63,7 @@ class Trainer:
         os.makedirs(self.data_dir, exist_ok=True)
 
     def setup_datasets(self):
-        src_lmdb_folder_path = self.params['dataset']['src_lmdb_folder_path']
+        src_lmdb_folder_path = os.path.abspath(self.params['dataset']['src_lmdb_folder_path'])
         logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
         dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
                                       db_workbase=self.data_dir,
