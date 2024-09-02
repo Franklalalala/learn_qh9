@@ -11,7 +11,6 @@ from transformers import get_polynomial_decay_schedule_with_warmup
 
 logger = logging.getLogger()
 
-
 class Trainer:
     def __init__(self, params):
         self.params = params
@@ -19,30 +18,55 @@ class Trainer:
         torch.set_default_dtype(self.default_type)
         logger.info(self.params)
         torch.manual_seed(self.params['general']['seed'])
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(self.params['general']['seed'])
 
         self.setup_device()
+        self.setup_output_directories()
         self.setup_datasets()
         self.setup_model()
         self.setup_optimizer()
-        self.setup_output_directories()
         self.setup_tensorboard()
 
     def setup_device(self):
-        if torch.cuda.is_available():
-            self.device = torch.device(f"cuda:{self.params['general']['device']}")
+        input_device = self.params['general']['device'].lower()
+        if input_device == 'cpu':
+            self.device = torch.device('cpu')
+        elif 'cuda' in input_device:
+            if torch.cuda.is_available():
+                try:
+                    device = torch.device(input_device)
+                    if device.index is not None and device.index >= torch.cuda.device_count():
+                        logger.warning(f"'{input_device}' is out of bounds. Defaulting to 'cuda:0'.")
+                        self.device = torch.device('cuda:0')
+                    else:
+                        self.device = device
+                    torch.cuda.manual_seed_all(self.params['general']['seed'])
+                except:
+                    logger.warning(f"{e}. Defaulting to 'cpu'.")
+                    self.device = torch.device('cpu')
+            else:
+                logger.warning("CUDA is not available. Defaulting to 'cpu'.")
+                self.device = torch.device('cpu')
         else:
+            logger.warning(f"Unrecognized device '{input_device}'. Defaulting to 'cpu'.")
             self.device = torch.device('cpu')
 
-    def setup_datasets(self):
-        root_path = os.path.join(os.sep.join(os.getcwd().split(os.sep)[:-3]))
-        logger.info(f"loading {self.params['dataset']['dataset_name']}...")
-        if self.params['dataset']['dataset_name'] == 'QH9Stable':
-            dataset = CustomizedQH9Stable(os.path.join(root_path, 'datasets'), split=self.params['dataset']['split'])
-        else:
-            raise NotImplementedError
+    def setup_output_directories(self):
+        self.output_dir = self.params['general']['output_dir']
+        self.log_dir = os.path.join(self.output_dir, 'logs')
+        self.ckpt_dir = os.path.join(self.output_dir, 'checkpoints')
+        self.data_dir = os.path.join(self.output_dir, 'data')
 
+        os.makedirs(self.output_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(self.ckpt_dir, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True)
+
+    def setup_datasets(self):
+        src_lmdb_folder_path = self.params['dataset']['src_lmdb_folder_path']
+        logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
+        dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
+                                      db_workbase=self.data_dir,
+                                      split=self.params['dataset']['split'])
         train_dataset = dataset[dataset.train_mask]
         valid_dataset = dataset[dataset.val_mask]
         test_dataset = dataset[dataset.test_mask]
@@ -88,25 +112,13 @@ class Trainer:
             num_training_steps=self.params['training']['total_steps'],
             lr_end=self.params['training']['lr_end'], power=1.0, last_epoch=-1)
 
-    def setup_output_directories(self):
-        self.output_dir = self.params['general']['output_dir']
-        self.log_dir = os.path.join(self.output_dir, 'logs')
-        self.ckpt_dir = os.path.join(self.output_dir, 'checkpoints')
-
-        os.makedirs(self.log_dir, exist_ok=True)
-        os.makedirs(self.ckpt_dir, exist_ok=True)
-
     def setup_tensorboard(self):
         self.writer = SummaryWriter(log_dir=self.log_dir)
 
     def train(self):
         self.model.train()
         epoch = 0
-        best_val_result = float('inf')
-        final_train_result = float('inf')
-        final_test_result = float('inf')
-        final_test_diagonal = float('inf')
-        final_test_nondiagonal = float('inf')
+        self.best_val_result = float('inf')
         train_iterator = iter(self.train_data_loader)
 
         for batch_idx in range(self.params['training']['total_steps'] + 10000):
@@ -128,8 +140,7 @@ class Trainer:
                 self.log_training_progress(epoch, batch_idx, errors)
 
             if batch_idx % self.params['validation']['validation_batch_interval'] == 0:
-                self.validate_and_save(epoch, batch_idx, errors, best_val_result, final_train_result,
-                                       final_test_result, final_test_diagonal, final_test_nondiagonal)
+                self.validate_and_save(epoch, batch_idx, errors)
 
         self.writer.close()
 
@@ -144,7 +155,7 @@ class Trainer:
         self.optimizer.step()
         return errors
 
-    def validate_and_save(self, epoch, batch_idx, errors, best_val_result):
+    def validate_and_save(self, epoch, batch_idx, errors):
         logger.info(f"Evaluating on epoch {epoch}")
         use_ema = self.params['training']['ema_start_epoch'] > -1 and epoch > self.params['training']['ema_start_epoch']
 
@@ -156,8 +167,8 @@ class Trainer:
 
         with context_manager:
             val_errors = self.validation_dataset(self.val_data_loader)
-            if val_errors['hamiltonian_mae'] < best_val_result:
-                best_val_result = val_errors['hamiltonian_mae']
+            if val_errors['hamiltonian_mae'] < self.best_val_result:
+                self.best_val_result = val_errors['hamiltonian_mae']
                 test_errors = self.validation_dataset(self.test_data_loader)
                 self.save_model("results_best.pt", errors, batch_idx)
             else:
@@ -166,7 +177,7 @@ class Trainer:
         if batch_idx % self.params['validation']['save_interval'] == 0:
             self.save_model(f"results_{batch_idx}.pt", errors, batch_idx)
 
-        self.log_validation_results(epoch, batch_idx, errors, val_errors, test_errors, best_val_result)
+        self.log_validation_results(epoch, batch_idx, errors, val_errors, test_errors)
 
     @torch.no_grad()
     def validation_dataset(self, data_loader):
@@ -217,12 +228,12 @@ class Trainer:
         self.writer.add_scalar('Train/Hamiltonian_Non_Diagonal_MAE', errors['hamiltonian_non_diagonal_mae'], batch_idx)
         self.writer.add_scalar('Train/Learning_Rate', self.optimizer.param_groups[0]['lr'], batch_idx)
 
-    def log_validation_results(self, epoch, batch_idx, train_errors, val_errors, test_errors, best_val_result):
+    def log_validation_results(self, epoch, batch_idx, train_errors, val_errors, test_errors):
         log_messages = [
             f"Epoch {epoch} batch_idx {batch_idx} with hamiltonian {train_errors['hamiltonian_mae']:.8f}.",
             f"hamiltonian: diagonal/non diagonal :{train_errors['hamiltonian_diagonal_mae']:.8f}, {train_errors['hamiltonian_non_diagonal_mae']:.8f}.",
             "-------------------------",
-            f"best val hamiltonian so far: {best_val_result:.8f}.",
+            f"best val hamiltonian so far: {self.best_val_result:.8f}.",
             f"current val hamiltonian: {val_errors['hamiltonian_mae']:.8f}",
         ]
 
@@ -238,7 +249,7 @@ class Trainer:
             logger.info(message)
 
         # Log to TensorBoard
-        self.writer.add_scalar('Validation/Best_Hamiltonian_MAE', best_val_result, batch_idx)
+        self.writer.add_scalar('Validation/Best_Hamiltonian_MAE', self.best_val_result, batch_idx)
         self.writer.add_scalar('Validation/Current_Hamiltonian_MAE', val_errors['hamiltonian_mae'], batch_idx)
 
         if test_errors:
