@@ -1,15 +1,16 @@
-import logging
 import os
 from torch.utils.tensorboard import SummaryWriter
 import torch
 from learn_qh9.datasets import CustomizedQH9Stable
 from learn_qh9.models.QHNet import QHNet
 from learn_qh9.loss import criterion
+from learn_qh9.tools import set_logger
 from torch_ema import ExponentialMovingAverage
 from torch_geometric.loader import DataLoader
 from transformers import get_polynomial_decay_schedule_with_warmup
+from contextlib import nullcontext
 
-logger = logging.getLogger()
+logger = set_logger()
 
 class Trainer:
     def __init__(self, params):
@@ -136,10 +137,10 @@ class Trainer:
             if self.params['training']['ema_start_epoch'] > -1 and epoch > self.params['training']['ema_start_epoch']:
                 self.ema.update()
 
-            if batch_idx % self.params['training']['train_batch_interval'] == 0:
+            if batch_idx % self.params['training']['log_interval'] == 0:
                 self.log_training_progress(epoch, batch_idx, errors)
 
-            if batch_idx % self.params['validation']['validation_batch_interval'] == 0:
+            if batch_idx % self.params['validation']['valid_interval'] == 0:
                 self.validate_and_save(epoch, batch_idx, errors)
 
         self.writer.close()
@@ -212,7 +213,7 @@ class Trainer:
         }, save_path)
 
     def post_processing(self, batch):
-        for key in batch.keys:
+        for key in batch.keys():
             if torch.is_tensor(batch[key]) and torch.is_floating_point(batch[key]):
                 batch[key] = batch[key].type(self.default_type)
         return batch

@@ -113,8 +113,7 @@ class CustomizedQH9Stable(InMemoryDataset):
         orbital_mask_line2 = torch.arange(self.full_orbitals)
         for i in range(1, 11):
             self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
-        super(CustomizedQH9Stable, self).__init__(self.root, db_workbase, transform, pre_transform, pre_filter)
-        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])
+        super(CustomizedQH9Stable, self).__init__(self.root, transform, pre_transform, pre_filter)
         self.slices = {
             'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
 
@@ -154,7 +153,9 @@ class CustomizedQH9Stable(InMemoryDataset):
             val_mask = val_indices[0].astype(np.int64)
             test_mask = test_indices[0].astype(np.int64)
 
+        print(f'Number of train/valid/test is {len(train_mask)}/{len(val_mask)}/{len(test_mask)}')
         torch.save((train_mask, val_mask, test_mask), self.processed_paths[0])
+        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])
 
     def cut_matrix(self, matrix, atoms):
         all_diagonal_matrix_blocks = []

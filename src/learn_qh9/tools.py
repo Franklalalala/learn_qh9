@@ -1,5 +1,6 @@
 import pickle
 import random
+import logging
 
 import lmdb
 import numpy as np
@@ -124,3 +125,14 @@ def raw_db_2_lmdb(raw_db_path: str, lmdb_folder_path: str, batch_size: int = 100
             offset += batch_size
         pbar.close()
     db_env.close()
+
+
+def set_logger():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)  # Set the desired log level
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    return logger
