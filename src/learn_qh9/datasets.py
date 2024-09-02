@@ -127,7 +127,7 @@ class CustomizedQH9Stable(InMemoryDataset):
 
     def process(self):
         new_db_folder_path = os.path.join(self.processed_dir, 'QH9Stable.lmdb')
-        shutil.copytree(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+        os.symlink(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
         if self.split == 'random':
             print('Random splitting...')
             data_ratio = [0.8, 0.1, 0.1]

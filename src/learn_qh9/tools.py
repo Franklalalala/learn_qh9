@@ -1,11 +1,38 @@
-import random
 import pickle
+import random
+
 import lmdb
 import numpy as np
-from ase.db.core import connect
-from ase.atoms import Atoms
+import yaml
 from apsw import Connection
+from ase.atoms import Atoms
+from ase.db.core import connect
 from tqdm import tqdm
+
+
+class DotDict(dict):
+    """
+    A custom dictionary class that allows dot notation access to nested dictionaries.
+    """
+
+    def __getattr__(self, key):
+        if key in self:
+            value = self[key]
+            if isinstance(value, dict):
+                return DotDict(value)
+            elif isinstance(value, list):
+                return [DotDict(item) if isinstance(item, dict) else item for item in value]
+            return value
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+
+
+def load_yaml(file_path):
+    """
+    Load a YAML file and return the raw dictionary.
+    """
+    with open(file_path, 'r') as file:
+        yaml_data = yaml.safe_load(file)
+    return yaml_data
 
 
 def parse_lmdb_info_2_readable(value):
