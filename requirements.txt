@@ -7,3 +7,5 @@ ase
 lmdb
 torch_geometric
 e3nn
+numpy
+matplotlib

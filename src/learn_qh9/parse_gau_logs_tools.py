@@ -9,6 +9,7 @@ from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms, Atom
+from tqdm import tqdm
 
 orbital_idx_map = {
     's': [0],
@@ -565,3 +566,40 @@ def apply_phase_signs_to_matrix(matrix, phase_sign_list):
     modified_matrix = matrix * phase_sign_matrix
 
     return modified_matrix
+
+
+def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_path: str):
+    abs_gau_path_list = []
+    ep_id_list = []
+
+    with open(valid_gau_info_path, 'r') as file:
+        for line in file.readlines():
+            path = line.strip()
+            abs_gau_path_list.append(path)
+
+            # Extract the episode ID from the path using regex
+            match = re.search(r'ep-(\d+)_vum', path)
+            ep_id = match.group(1)
+            ep_id_list.append(ep_id)
+    db_env = lmdb.open(lmdb_folder_path, map_size=1048576000000, lock=True)
+    print('Start transform')
+    with db_env.begin(write=True) as txn:
+        for idx, a_path in tqdm(enumerate(abs_gau_path_list), total=len(abs_gau_path_list), desc="Processing files"):
+            a_real_id = ep_id_list[idx]
+            nbasis, atoms = get_basic_info(a_path)
+            molecule_transform_indices, atom_in_mo_indices = generate_molecule_transform_indices(
+                atom_types=atoms.symbols,
+                atom_to_transform_indices=convention['atom_to_transform_indices']
+            )
+            matrix = read_int1e_from_gau_log(a_path, matrix_type=3, nbf=nbasis)
+            matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
+            info_dict = {
+                'id': a_real_id,
+                'num_nodes': len(atoms),
+                'atoms': atoms.numbers,
+                'pos': atoms.positions,  # ang
+                'Ham': matrix
+            }
+            txn.put(idx.to_bytes(length=4, byteorder='big'), info_dict)
+    db_env.close()
+    print('Done')
