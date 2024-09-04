@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import pickle
 import re
 import shutil
 from collections import Counter
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ase import Atoms, Atom
 from tqdm import tqdm
+import lmdb
 
 orbital_idx_map = {
     's': [0],
@@ -600,6 +602,8 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
                 'pos': atoms.positions,  # ang
                 'Ham': matrix
             }
+            info_dict = pickle.dumps(info_dict)
             txn.put(idx.to_bytes(length=4, byteorder='big'), info_dict)
+    print
     db_env.close()
     print('Done')
