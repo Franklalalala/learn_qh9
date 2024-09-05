@@ -387,12 +387,15 @@ def read_int1e_from_gau_log(logname, matrix_type, nbf):
         1: r"Kinetic Energy",
         2: r"Potential Energy",
         3: r"Core Hamiltonian",
+        4: r"Fock matrix",
     }
 
     if matrix_type not in matrix_types:
         raise ValueError(
-            f"Invalid matrix_type = {matrix_type}. Allowed values are 1/2/3/4 for Overlap/Kinetic/Potential/Core Hamiltonian.")
+            f"Invalid matrix_type = {matrix_type}. Allowed values are 0/1/2/3/4 for Overlap/Kinetic/Potential/Core Hamiltonian/Fock matrix.")
     target_pattern = re.compile(rf"\*+\s*{matrix_types[matrix_type]}\s*\*+")
+    if matrix_type == 4:
+        target_pattern = re.compile(rf" Extrapolated FA")
     mat = np.zeros((nbf, nbf))
     with open(logname, 'r') as f:
         # Search for the target pattern
@@ -607,3 +610,22 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
     print
     db_env.close()
     print('Done')
+
+
+def gau_log_2_images(ham_flag: bool, overlap_flag: bool, gau_path: str):
+    convention = get_convention(filename=gau_path, dump_file='convention.txt')
+    nbasis, atoms = get_basic_info(gau_path)
+    molecule_transform_indices, atom_in_mo_indices = generate_molecule_transform_indices(
+        atom_types=atoms.symbols,
+        atom_to_transform_indices=convention['atom_to_transform_indices']
+    )
+    if ham_flag:
+        matrix = read_int1e_from_gau_log(gau_path, matrix_type=4, nbf=nbasis)
+        matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
+        matrix_to_image(matrix, filename='gau_ham.png')
+        np.save('ham.npy', matrix)
+    if overlap_flag:
+        matrix = read_int1e_from_gau_log(gau_path, matrix_type=0, nbf=nbasis)
+        matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
+        matrix_to_image(matrix, filename='gau_overlap.png')
+        np.save('overlap.npy', matrix)
