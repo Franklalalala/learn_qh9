@@ -595,15 +595,16 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
             )
             matrix = read_int1e_from_gau_log(a_path, matrix_type=3, nbf=nbasis)
             matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
+            atom_number_list = atoms.numbers.tolist()
             info_dict = {
                 'id': a_real_id,
                 'num_nodes': len(atoms),
-                'atoms': atoms.numbers,
-                'pos': atoms.positions,  # ang
-                'Ham': matrix
+                'nbasis': nbasis,
+                'atoms': atoms.numbers.astype(np.int32).tobytes(),
+                'pos': atoms.positions.astype(np.float64).tobytes(), # ang
+                'Ham': matrix.astype(np.float64).tobytes(),
             }
             info_dict = pickle.dumps(info_dict)
             txn.put(idx.to_bytes(length=4, byteorder='big'), info_dict)
-    print
     db_env.close()
     print('Done')
