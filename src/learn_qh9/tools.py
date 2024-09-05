@@ -1,3 +1,4 @@
+import os
 import pickle
 import random
 import logging
@@ -49,9 +50,12 @@ def parse_lmdb_info_2_ase_readable(value):
     atoms, pos, Ham = np.frombuffer(data_dict['atoms'], np.int32), \
         np.frombuffer(data_dict['pos'], np.float64), \
         np.frombuffer(data_dict['Ham'], np.float64)
-    num_nodes = len(atoms)
+    num_nodes = data_dict['num_nodes']
     pos = pos.reshape(num_nodes, 3)
-    num_orbitals = sum([5 if atom <= 2 else 14 for atom in atoms])
+    if 'nbasis' in data_dict.keys():
+        num_orbitals = data_dict['nbasis']
+    else:
+        num_orbitals = sum([5 if atom <= 2 else 14 for atom in atoms])
     Ham = Ham.reshape(num_orbitals, num_orbitals)
     data_dict['atoms'], data_dict['pos'], data_dict['Ham'] = atoms, pos, Ham
     return data_dict
