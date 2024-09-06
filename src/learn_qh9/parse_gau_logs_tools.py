@@ -629,9 +629,8 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
                 atom_types=atoms.symbols,
                 atom_to_transform_indices=convention['atom_to_transform_indices']
             )
-            matrix = read_int1e_from_gau_log(a_path, matrix_type=3, nbf=nbasis)
+            matrix = read_fock_from_gau_log(a_path, nbf=nbasis)
             matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
-            atom_number_list = atoms.numbers.tolist()
             info_dict = {
                 'id': a_real_id,
                 'num_nodes': len(atoms),
