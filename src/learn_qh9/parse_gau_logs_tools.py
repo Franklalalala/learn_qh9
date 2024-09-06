@@ -346,6 +346,7 @@ def matrix_to_image(matrix, filename='matrix_image.png', orbital_labels=None):
 
     # Save the image
     plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
     print(f"Image saved as {filename}")
 
 
@@ -405,6 +406,38 @@ def read_int1e_from_gau_log(logname, matrix_type, nbf):
         else:
             raise ValueError(f"No match for '{matrix_types[matrix_type]}' found in file {logname}")
 
+        # Read the matrix data
+        n = (nbf + 4) // 5  # Equivalent to ceiling division
+        for i in range(n):
+            next(f)  # Skip the line with column numbers
+            k = 5 * i
+            for j in range(k, nbf):
+                line = next(f).split()
+                m = min(5, nbf - k)
+                actual_line_len = len(line[1:m + 1])
+                mat[k:k + actual_line_len, j] = [float(x.replace('D', 'E')) for x in line[1:m + 1]]
+    # Mirror the upper triangle to the lower triangle
+    mat = mat + mat.T - np.diag(mat.diagonal())
+    return mat
+
+# modified from Mokit,
+# see https://github.com/1234zou/MOKIT/blob/7499356b1ff0f9d8b9efbb846395059867dbba4c/src/rwwfn.f90#L895
+# Key word IOp(5/33=3, 3/33=1) is required
+def read_fock_from_gau_log(logname, nbf):
+    target_pattern = re.compile(rf" Fock matrix")
+    pattern_counts = 0
+    with open(logname, 'r') as f:
+        for line in f:
+            if target_pattern.search(line):
+                pattern_counts = pattern_counts + 1
+    current_counts = 0
+    mat = np.zeros((nbf, nbf))
+    with open(logname, 'r') as f:
+        for line in f:
+            if target_pattern.search(line):
+                current_counts = current_counts + 1
+            if current_counts == pattern_counts:
+                break
         # Read the matrix data
         n = (nbf + 4) // 5  # Equivalent to ceiling division
         for i in range(n):
@@ -621,7 +654,7 @@ def gau_log_2_images(ham_flag: bool, overlap_flag: bool, gau_path: str):
         atom_to_transform_indices=convention['atom_to_transform_indices']
     )
     if ham_flag:
-        matrix = read_int1e_from_gau_log(gau_path, matrix_type=4, nbf=nbasis)
+        matrix = read_fock_from_gau_log(gau_path, nbf=nbasis)
         matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
         matrix_to_image(matrix, filename='gau_ham.png')
         np.save('ham.npy', matrix)
