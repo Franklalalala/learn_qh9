@@ -61,7 +61,7 @@ def chk_valid_gau_logs(root, prefix, hamiltonian=False, overlap=False, density_m
     file_paths = glob.glob(root + '/*' + prefix + '*')
     valid_count = 0
     invalid_count = 0
-    with open(valid_gau_info_path, 'w') as valid_file, open(invalid_gau_info_path, 'w') as invalid_file:
+    with open(valid_gau_info_path, 'a') as valid_file, open(invalid_gau_info_path, 'a') as invalid_file:
         for a_file in file_paths:
             if chk_valid_gau_log_unit(a_file, hamiltonian, overlap, density_matrix, is_fixed_convention):
                 valid_file.write(f"{a_file}\n")
