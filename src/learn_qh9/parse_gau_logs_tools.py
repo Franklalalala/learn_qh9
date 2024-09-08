@@ -20,6 +20,14 @@ orbital_idx_map = {
     'f': [6, 4, 2, 0, 1, 3, 5],
 }
 
+gau_6311_plus_gdp_to_pyscf_convention = {
+    'atom_to_simplified_orbitals': {'C': 'sspspspspd', 'H': 'sssp', 'O': 'sspspspspd'},
+    'atom_to_sorted_orbitals': {'C': 'sssssppppd', 'H': 'sssp', 'O': 'sssssppppd'},
+    'atom_to_transform_indices': {'C': [0, 1, 5, 9, 13, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15, 16, 21, 19, 17, 18, 20],
+                                  'H': [0, 1, 2, 3, 4, 5],
+                                  'O': [0, 1, 5, 9, 13, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15, 16, 21, 19, 17, 18, 20]},
+    'basis_name': '6-311+g(d,p)', }
+
 def chk_valid_gau_log_unit(file_path, hamiltonian=False, overlap=False, density_matrix=False,
                            is_fixed_convention=False):
     required_patterns = [
@@ -606,7 +614,7 @@ def apply_phase_signs_to_matrix(matrix, phase_sign_list):
     return modified_matrix
 
 
-def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_path: str):
+def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_path: str, batch_size: int = 1000):
     abs_gau_path_list = []
     ep_id_list = []
 
@@ -619,31 +627,40 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
             match = re.search(r'ep-(\d+)_vum', path)
             ep_id = match.group(1)
             ep_id_list.append(ep_id)
+
     db_env = lmdb.open(lmdb_folder_path, map_size=1048576000000, lock=True)
     print('Start transform')
-    with db_env.begin(write=True) as txn:
-        for idx, a_path in tqdm(enumerate(abs_gau_path_list), total=len(abs_gau_path_list), desc="Processing files"):
-            a_real_id = ep_id_list[idx]
-            nbasis, atoms = get_basic_info(a_path)
-            molecule_transform_indices, atom_in_mo_indices = generate_molecule_transform_indices(
-                atom_types=atoms.symbols,
-                atom_to_transform_indices=convention['atom_to_transform_indices']
-            )
-            matrix = read_fock_from_gau_log(a_path, nbf=nbasis)
-            matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
-            info_dict = {
-                'id': a_real_id,
-                'num_nodes': len(atoms),
-                'nbasis': nbasis,
-                'atoms': atoms.numbers.astype(np.int32).tobytes(),
-                'pos': atoms.positions.astype(np.float64).tobytes(), # ang
-                'Ham': matrix.astype(np.float64).tobytes(),
-            }
-            info_dict = pickle.dumps(info_dict)
-            txn.put(idx.to_bytes(length=4, byteorder='big'), info_dict)
+
+    total_items = len(abs_gau_path_list)
+    batches = range(0, total_items, batch_size)
+
+    for batch_start in tqdm(batches, desc="Processing batches"):
+        batch_end = min(batch_start + batch_size, total_items)
+
+        with db_env.begin(write=True) as txn:
+            for idx in range(batch_start, batch_end):
+                a_path = abs_gau_path_list[idx]
+                a_real_id = ep_id_list[idx]
+                nbasis, atoms = get_basic_info(a_path)
+                molecule_transform_indices, atom_in_mo_indices = generate_molecule_transform_indices(
+                    atom_types=atoms.symbols,
+                    atom_to_transform_indices=convention['atom_to_transform_indices']
+                )
+                matrix = read_fock_from_gau_log(a_path, nbf=nbasis)
+                matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
+                info_dict = {
+                    'id': a_real_id,
+                    'num_nodes': len(atoms),
+                    'nbasis': nbasis,
+                    'atoms': atoms.numbers.astype(np.int32).tobytes(),
+                    'pos': atoms.positions.astype(np.float64).tobytes(),  # ang
+                    'Ham': matrix.astype(np.float64).tobytes(),
+                }
+                info_dict = pickle.dumps(info_dict)
+                txn.put(idx.to_bytes(length=4, byteorder='big'), info_dict)
+
     db_env.close()
     print('Done')
-
 
 def gau_log_2_images(ham_flag: bool, overlap_flag: bool, gau_path: str):
     convention = get_convention(filename=gau_path, dump_file='convention.txt')
