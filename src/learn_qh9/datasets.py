@@ -32,6 +32,15 @@ convention_dict = {
             8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
         },
     ),
+    'pyscf_6311_plus_gdp': Namespace(
+        atom_to_orbitals_map={1: 'sssp', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
+        orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2, 3], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        },
+    ),
 }
 
 atomrefs = {
@@ -101,18 +110,27 @@ def matrix_transform(matrices, atoms, convention='pyscf_631G'):
 
 class CustomizedQH9Stable(InMemoryDataset):
     def __init__(self, src_lmdb_folder_path: str, db_workbase='datasets/', split='random', transform=None,
-                 pre_transform=None, pre_filter=None):
+                 pre_transform=None, pre_filter=None, convention='pyscf_def2svp'):
         self.src_lmdb_folder_path = src_lmdb_folder_path
         db_workbase = os.path.abspath(db_workbase)
         self.root = osp.join(db_workbase, 'QH9Stable')
         self.split = split
-        self.full_orbitals = 14
         self.orbital_mask = {}
-        idx_1s_2s_2p = torch.tensor([0, 1, 3, 4, 5])
-        orbital_mask_line1 = idx_1s_2s_2p
-        orbital_mask_line2 = torch.arange(self.full_orbitals)
-        for i in range(1, 11):
-            self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+
+        if convention != 'pyscf_6311_plus_gdp':
+            self.full_orbitals = 14
+            orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+        else:
+            self.full_orbitals = 22
+            orbital_mask_line1 = torch.tensor([0, 1, 2, 3, 4, 5])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+        self.convention = convention
+
         super(CustomizedQH9Stable, self).__init__(self.root, transform, pre_transform, pre_filter)
         self.slices = {
             'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
@@ -203,7 +221,7 @@ class CustomizedQH9Stable(InMemoryDataset):
 
     def get_mol(self, atoms, pos, Ham):
         hamiltonian = torch.tensor(
-            matrix_transform(Ham, atoms, convention='pyscf_def2svp'), dtype=torch.float64)
+            matrix_transform(Ham, atoms, convention=self.convention), dtype=torch.float64)
         diagonal_hamiltonian, non_diagonal_hamiltonian, \
             diagonal_hamiltonian_mask, non_diagonal_hamiltonian_mask, edge_index_full \
             = self.cut_matrix(hamiltonian, atoms)
