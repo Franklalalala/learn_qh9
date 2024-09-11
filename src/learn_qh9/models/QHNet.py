@@ -666,7 +666,8 @@ class QHNet(nn.Module):
                  num_gnn_layers=5,
                  max_radius=12,
                  num_nodes=10,
-                 radius_embed_dim=32):  # maximum nuclear charge (+1, i.e. 87 for up to Rn) for embeddings, can be kept at default
+                 radius_embed_dim=32,  # maximum nuclear charge (+1, i.e. 87 for up to Rn) for embeddings, can be kept at default
+                 convention="pyscf_6311_plus_gdp"):
         super(QHNet, self).__init__()
         # store hyperparameter values
         self.atom_orbs = [
@@ -674,6 +675,7 @@ class QHNet(nn.Module):
             [[1, 0, '1s'], [1, 0, '2s'], [1, 1, '2p']],
             [[1, 0, '1s'], [1, 0, '2s'], [1, 1, '2p']]
         ]
+        self.convention = convention
         self.order = sh_lmax
 
         self.sh_irrep = o3.Irreps.spherical_harmonics(lmax=self.order)
@@ -739,13 +741,17 @@ class QHNet(nn.Module):
         self.nonlinear_layer = get_nonlinear('ssp')
         self.expand_ii, self.expand_ij, self.fc_ii, self.fc_ij, self.fc_ii_bias, self.fc_ij_bias = \
             nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict()
+        if convention != 'pyscf_6311_plus_gdp':
+            out_irreps = "3x0e + 2x1e + 1x2e"
+        else:
+            out_irreps = "5x0e + 4x1e + 1x2e"
         for name in {"hamiltonian"}:
             input_expand_ii = o3.Irreps(f"{self.hbs}x0e + {self.hbs}x1e + {self.hbs}x2e + {self.hbs}x3e + {self.hbs}x4e")
 
             self.expand_ii[name] = Expansion(
                 input_expand_ii,
-                o3.Irreps("3x0e + 2x1e + 1x2e"),
-                o3.Irreps("3x0e + 2x1e + 1x2e")
+                o3.Irreps(out_irreps),
+                o3.Irreps(out_irreps)
             )
             self.fc_ii[name] = torch.nn.Sequential(
                 nn.Linear(self.hs, self.hs),
@@ -760,8 +766,8 @@ class QHNet(nn.Module):
 
             self.expand_ij[name] = Expansion(
                 o3.Irreps(f'{self.hbs}x0e + {self.hbs}x1e + {self.hbs}x2e + {self.hbs}x3e + {self.hbs}x4e'),
-                o3.Irreps("3x0e + 2x1e + 1x2e"),
-                o3.Irreps("3x0e + 2x1e + 1x2e")
+                o3.Irreps(out_irreps),
+                o3.Irreps(out_irreps)
             )
 
             self.fc_ij[name] = torch.nn.Sequential(
@@ -779,6 +785,10 @@ class QHNet(nn.Module):
         self.output_ii = Linear(self.hidden_irrep, self.hidden_bottle_irrep)
         self.output_ij = Linear(self.hidden_irrep, self.hidden_bottle_irrep)
 
+        self.orbital_mask = self.get_orbital_mask()
+        for key in self.orbital_mask.keys():
+            self.orbital_mask[key] = self.orbital_mask[key].to(self.device)
+
     def get_number_of_parameters(self):
         num = 0
         for param in self.parameters():
@@ -786,11 +796,8 @@ class QHNet(nn.Module):
                 num += param.numel()
         return num
 
-    def set(self, device):
-        self = self.to(device)
-        self.orbital_mask = self.get_orbital_mask()
-        for key in self.orbital_mask.keys():
-            self.orbital_mask[key] = self.orbital_mask[key].to(self.device)
+    def set(self):
+        pass
 
     @property
     def device(self):
@@ -879,6 +886,7 @@ class QHNet(nn.Module):
         return node_attr, radius_edges, rbf, edge_sh, torch.cat(all_transpose_index, dim=-1)
 
     def build_final_matrix(self, data, diagonal_matrix, non_diagonal_matrix):
+        # print(self.orbital_mask)
         # concate the blocks together and then select once.
         final_matrix = []
         dst, src = data.full_edge_index
@@ -907,23 +915,33 @@ class QHNet(nn.Module):
         return final_matrix
 
     def get_orbital_mask(self):
-        idx_1s_2s = torch.tensor([0, 1])
-        idx_2p = torch.tensor([3, 4, 5])
-        orbital_mask_line1 = torch.cat([idx_1s_2s, idx_2p])
-        orbital_mask_line2 = torch.arange(14)
         orbital_mask = {}
-        for i in range(1, 11):
-            orbital_mask[i] = orbital_mask_line1 if i <=2 else orbital_mask_line2
+        if self.convention != 'pyscf_6311_plus_gdp':
+            self.full_orbitals = 14
+            orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+        else:
+            self.full_orbitals = 22
+            orbital_mask_line1 = torch.tensor([0, 1, 2, 3, 4, 5])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+
         return orbital_mask
 
     def split_matrix(self, data):
-        diagonal_matrix, non_diagonal_matrix = \
-            torch.zeros(data.atoms.shape[0], 14, 14).type(data.pos.type()).to(self.device), \
-            torch.zeros(data.edge_index.shape[1], 14, 14).type(data.pos.type()).to(self.device)
-
+        if self.convention != 'pyscf_6311_plus_gdp':
+            diagonal_matrix, non_diagonal_matrix = \
+                torch.zeros(data.atoms.shape[0], 14, 14).type(data.pos.type()).to(self.device), \
+                    torch.zeros(data.edge_index.shape[1], 14, 14).type(data.pos.type()).to(self.device)
+        else:
+            diagonal_matrix, non_diagonal_matrix = \
+                torch.zeros(data.atoms.shape[0], 22, 22).type(data.pos.type()).to(self.device), \
+                    torch.zeros(data.edge_index.shape[1], 22, 22).type(data.pos.type()).to(self.device)
         data.matrix =  data.matrix.reshape(
             len(data.ptr) - 1, data.matrix.shape[-1], data.matrix.shape[-1])
-
         num_atoms = 0
         num_edges = 0
         for graph_idx in range(data.ptr.shape[0] - 1):

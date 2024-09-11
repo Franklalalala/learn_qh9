@@ -67,7 +67,8 @@ class Trainer:
         logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
         dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
                                       db_workbase=self.data_dir,
-                                      split=self.params['dataset']['split'])
+                                      split=self.params['dataset']['split'],
+                                      convention=self.params['dataset']['convention'])
         train_dataset = dataset[dataset.train_mask]
         valid_dataset = dataset[dataset.val_mask]
         test_dataset = dataset[dataset.test_mask]
@@ -93,7 +94,8 @@ class Trainer:
             num_gnn_layers=self.params['model']['num_gnn_layers'],
             max_radius=self.params['model']['max_radius'],
             num_nodes=self.params['model']['num_nodes'],
-            radius_embed_dim=self.params['model']['radius_embed_dim']
+            radius_embed_dim=self.params['model']['radius_embed_dim'],
+            convention=self.params['dataset']['convention']
         )
         self.model.to(self.device)
         logger.info(self.model)
