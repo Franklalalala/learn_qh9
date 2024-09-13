@@ -169,10 +169,10 @@ class Trainer:
             context_manager = nullcontext()
 
         with context_manager:
-            val_errors = self.validation_dataset(self.val_data_loader)
+            val_errors = self.do_valid(self.val_data_loader)
             if val_errors['hamiltonian_mae'] < self.best_val_result:
                 self.best_val_result = val_errors['hamiltonian_mae']
-                test_errors = self.validation_dataset(self.test_data_loader)
+                test_errors = self.do_valid(self.test_data_loader)
                 self.save_model("results_best.pt", errors, batch_idx)
             else:
                 test_errors = None
@@ -183,7 +183,7 @@ class Trainer:
         self.log_validation_results(epoch, batch_idx, errors, val_errors, test_errors)
 
     @torch.no_grad()
-    def validation_dataset(self, data_loader):
+    def do_valid(self, data_loader):
         self.model.eval()
         total_error_dict = {'total_items': 0}
         loss_weights = {'hamiltonian': 1.0}
