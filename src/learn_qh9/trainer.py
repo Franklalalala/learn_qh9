@@ -9,6 +9,7 @@ from torch_ema import ExponentialMovingAverage
 from torch_geometric.loader import DataLoader
 from transformers import get_polynomial_decay_schedule_with_warmup
 from contextlib import nullcontext
+import time
 
 logger = set_logger()
 
@@ -65,6 +66,10 @@ class Trainer:
     def setup_datasets(self):
         src_lmdb_folder_path = os.path.abspath(self.params['dataset']['src_lmdb_folder_path'])
         logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
+        if 'convention' not in self.params['dataset'].keys():
+            self.params["dataset"].update({'convention': 'pyscf_def2svp'})
+            logger.info('Convention not found in parameter dataset filed, set it as default pyscf_def2svp.')
+
         dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
                                       db_workbase=self.data_dir,
                                       split=self.params['dataset']['split'],
@@ -187,6 +192,7 @@ class Trainer:
         self.model.eval()
         total_error_dict = {'total_items': 0}
         loss_weights = {'hamiltonian': 1.0}
+        start_time = time.time()
         for batch in data_loader:
             batch = self.post_processing(batch)
             batch = batch.to(self.device)
@@ -203,7 +209,8 @@ class Trainer:
         for key in total_error_dict.keys():
             if key != 'total_items':
                 total_error_dict[key] = total_error_dict[key] / total_error_dict['total_items']
-
+        end_time = time.time()
+        total_error_dict['second_per_item'] = (end_time - start_time) / total_error_dict['total_items']
         return total_error_dict
 
     def save_model(self, filename, errors, batch_idx):
