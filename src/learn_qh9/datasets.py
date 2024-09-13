@@ -128,7 +128,8 @@ class CustomizedQH9Stable(InMemoryDataset):
 
         if convention != 'pyscf_6311_plus_gdp':
             self.full_orbitals = 14
-            orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
+            orbital_mask_line1 = torch.tensor([0, 1, 2, 3, 4])
+            # orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
             orbital_mask_line2 = torch.arange(self.full_orbitals)
             for i in range(1, 11):
                 self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
