@@ -307,12 +307,12 @@ def get_orbital_labels(atom_symbols, orbital_configs):
     return orbital_labels
 
 
-def matrix_to_image(matrix, filename='matrix_image.png', orbital_labels=None):
+def matrix_to_image(matrix, filename='matrix_image.png', orbital_labels=None, pic_size=30):
     # Convert the matrix to a numpy array
     matrix = np.array(matrix)
 
     # Create a new figure and axis
-    fig, ax = plt.subplots(figsize=(30, 30))
+    fig, ax = plt.subplots(figsize=(pic_size, pic_size))
 
     # Create a color-mapped image of the matrix
     im = ax.imshow(matrix, cmap='viridis')

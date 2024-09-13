@@ -43,15 +43,15 @@ def criterion(outputs, target, names):
             count_sum_blocks = scatter_sum(count_sum_blocks, batch)
             error_dict[key + '_mae'] = (mae_blocks / count_sum_blocks).mean()
         else:
-            diff = torch.tensor(outputs[key] - target[key])
+            diff = torch.from_numpy(outputs[key] - target[key])
             mae = torch.mean(torch.abs(diff))
             error_dict[key] = mae
     return error_dict
 
 
 def cal_orbital_and_energies(overlap_matrix, full_hamiltonian):
-    overlap_matrix = torch.tensor(overlap_matrix)
-    full_hamiltonian = torch.tensor(full_hamiltonian)
+    overlap_matrix = torch.from_numpy(overlap_matrix)
+    full_hamiltonian = torch.from_numpy(full_hamiltonian)
 
     eigvals, eigvecs = torch.linalg.eigh(overlap_matrix)
     eps = 1e-8 * torch.ones_like(eigvals)
