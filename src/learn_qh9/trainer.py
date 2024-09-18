@@ -74,9 +74,9 @@ class Trainer:
                                       db_workbase=self.data_dir,
                                       split=self.params['dataset']['split'],
                                       convention=self.params['dataset']['convention'])
-        train_dataset = dataset[list(dataset.train_mask)]
-        valid_dataset = dataset[list(dataset.val_mask)]
-        test_dataset = dataset[list(dataset.test_mask)]
+        train_dataset = dataset[dataset.train_mask]
+        valid_dataset = dataset[dataset.val_mask]
+        test_dataset = dataset[dataset.test_mask]
 
         g = torch.Generator()
         g.manual_seed(self.params['general']['seed'])
