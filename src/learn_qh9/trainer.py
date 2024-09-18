@@ -20,7 +20,10 @@ class Trainer:
         torch.set_default_dtype(self.default_type)
         logger.info(self.params)
         torch.manual_seed(self.params['general']['seed'])
-
+        if 'is_debug' in self.params['general'].keys():
+            self.is_debug = self.params['general']['is_debug']
+        else:
+            self.is_debug = False
         self.setup_device()
         self.setup_output_directories()
         self.setup_datasets()
@@ -69,14 +72,19 @@ class Trainer:
         if 'convention' not in self.params['dataset'].keys():
             self.params["dataset"].update({'convention': 'pyscf_def2svp'})
             logger.info('Convention not found in parameter dataset filed, set it as default pyscf_def2svp.')
-
         dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
                                       db_workbase=self.data_dir,
                                       split=self.params['dataset']['split'],
-                                      convention=self.params['dataset']['convention'])
-        train_dataset = dataset[list(dataset.train_mask)]
-        valid_dataset = dataset[list(dataset.val_mask)]
-        test_dataset = dataset[list(dataset.test_mask)]
+                                      convention=self.params['dataset']['convention'],
+                                      is_debug=self.is_debug)
+        if self.is_debug:
+            train_dataset = dataset[list(dataset.train_mask)]
+            valid_dataset = dataset[list(dataset.val_mask)]
+            test_dataset = dataset[list(dataset.test_mask)]
+        else:
+            train_dataset = dataset[dataset.train_mask]
+            valid_dataset = dataset[dataset.val_mask]
+            test_dataset = dataset[dataset.test_mask]
 
         g = torch.Generator()
         g.manual_seed(self.params['general']['seed'])

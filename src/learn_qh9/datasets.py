@@ -119,7 +119,8 @@ def matrix_transform(matrices, atoms, convention='pyscf_631G'):
 
 class CustomizedQH9Stable(InMemoryDataset):
     def __init__(self, src_lmdb_folder_path: str, db_workbase='datasets/', split='random', transform=None,
-                 pre_transform=None, pre_filter=None, convention='pyscf_def2svp'):
+                 pre_transform=None, pre_filter=None, convention='pyscf_def2svp', is_debug=False):
+        self.is_debug = is_debug
         self.src_lmdb_folder_path = src_lmdb_folder_path
         db_workbase = os.path.abspath(db_workbase)
         self.root = osp.join(db_workbase, 'QH9Stable')
@@ -153,9 +154,13 @@ class CustomizedQH9Stable(InMemoryDataset):
             return ['processed_QH9Stable_size_ood.pt', 'QH9Stable.lmdb/data.mdb']
 
     def process(self):
-        import shutil
         new_db_folder_path = os.path.join(self.processed_dir, 'QH9Stable.lmdb')
-        shutil.copytree(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+        if self.is_debug:
+            import shutil
+            shutil.copytree(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+        else:
+            os.symlink(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+
         if self.split == 'random':
             print('Random splitting...')
             data_ratio = [0.8, 0.1, 0.1]
