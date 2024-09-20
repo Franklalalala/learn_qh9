@@ -1,11 +1,15 @@
 import json
 import os.path
+import os
+import py3Dmol
 from argparse import Namespace
 from pprint import pprint
 import shutil
 
 import torch
 import pyscf
+from pyscf import tools, scf
+
 from learn_qh9.trainer import Trainer
 from learn_qh9.datasets import matrix_transform
 from tqdm import tqdm
@@ -23,6 +27,35 @@ loss_weights = {
     'HOMO': 1.0, 'LUMO': 1.0, 'GAP': 1.0,
 }
 
+def process_cube_file(cube_path):
+    # Read the cube file
+    with open(cube_path, 'r') as f:
+        cube_data = f.read()
+
+    # Create visualization
+    view = py3Dmol.view()
+    view.addModel(cube_data, 'cube')
+    view.addVolumetricData(cube_data, "cube", {'isoval': -0.03, 'color': "red", 'opacity': 0.75})
+    view.addVolumetricData(cube_data, "cube", {'isoval': 0.03, 'color': "blue", 'opacity': 0.75})
+    view.setStyle({'stick':{}})
+    view.zoomTo()
+
+    # Generate HTML content
+    html_content = view._make_html()
+
+    # Create HTML file with the same name as the cube file
+    html_path = os.path.splitext(cube_path)[0] + '.html'
+    with open(html_path, "w") as out:
+        out.write(html_content)
+
+    print(f"Generated HTML for: {cube_path}")
+
+def process_batch_cube_file(root_dir):
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        for filename in filenames:
+            if filename.endswith('.cube'):
+                cube_path = os.path.join(dirpath, filename)
+                process_cube_file(cube_path)
 
 def criterion(outputs, target, names):
     error_dict = {}
@@ -72,7 +105,8 @@ def post_processing(batch, default_type=torch.float32):
 
 
 @torch.no_grad()
-def test_with_pyscf(model, data_loader, device):
+def test_with_pyscf(model, data_loader, device, cubes_abs_folder, n_grid):
+    cwd_ = os.getcwd()
     model.eval()
     total_error_dict = {'total_items': 0}
     start_time = time.time()
@@ -127,6 +161,22 @@ def test_with_pyscf(model, data_loader, device):
             outputs['hamiltonian_diagonal_blocks'], outputs['hamiltonian_non_diagonal_blocks']
         error_dict = criterion(outputs, batch, loss_weights)
 
+        os.chdir(cubes_abs_folder)
+        a_sim = error_dict['orbital_coefficients']
+        a_sim = torch.round(a_sim, decimals=2)
+        folder_name = f'idx_{valid_batch_idx}_sim_{a_sim}'
+        os.makedirs(folder_name)
+        os.chdir(folder_name)
+
+        # mf = scf.RHF(mol)
+        # homo_idx = mf.mo_occ.argmax()
+        tools.cubegen.orbital(mol, 'predicted_HOMO.cube', outputs['orbital_coefficients'][0][:, -1], nx=n_grid, ny=n_grid, nz=n_grid)
+        tools.cubegen.orbital(mol, 'real_HOMO.cube', batch.orbital_coefficients[0][:, -1], nx=n_grid, ny=n_grid, nz=n_grid)
+        diff = (batch.orbital_coefficients[0][:, -1] - outputs['orbital_coefficients'][0][:, -1])
+        tools.cubegen.orbital(mol, 'diff_HOMO.cube', diff, nx=n_grid, ny=n_grid, nz=n_grid)
+
+        os.chdir(cwd_)
+
         for key in error_dict.keys():
             if key in total_error_dict.keys():
                 total_error_dict[key] += error_dict[key].item() * batch.hamiltonian.shape[0]
@@ -138,6 +188,7 @@ def test_with_pyscf(model, data_loader, device):
             total_error_dict[key] = total_error_dict[key] / total_error_dict['total_items']
     end_time = time.time()
     total_error_dict['second_per_item'] = (end_time - start_time) / total_error_dict['total_items']
+
     return total_error_dict
 
 
@@ -145,10 +196,13 @@ if __name__ == '__main__':
     if os.path.exists('output'):
         shutil.rmtree('output')
 
-    new_dataset_path = r'/personal/qh9_data/qh9_all'
-    # new_dataset_path = r'/personal/qh9_data/dummy_2500'
+    # new_dataset_path = r'/personal/qh9_data/qh9_all'
+    new_dataset_path = r'/personal/qh9_data/dummy_2500'
     best_ckpt_path = r'/personal/qh9_data/remote_all_0903/cooked/ckpt/32.pt'
     train_para_path = r'/personal/qh9_data/remote_all_0903/raw/32/input.json'
+
+    cubes_abs_folder = os.path.abspath(os.path.join('output', 'cubes'))
+    os.makedirs(cubes_abs_folder)
 
     with open(train_para_path, 'r') as json_file:
         params = json.load(json_file)
@@ -158,12 +212,12 @@ if __name__ == '__main__':
     a_trainer = Trainer(params)
 
     a_trainer.model.load_state_dict(torch.load(best_ckpt_path)['state_dict'])
-    # total_error_dict = a_trainer.do_valid(a_trainer.test_data_loader)
     print(a_trainer.model.convention)
-    total_error_dict = test_with_pyscf(model=a_trainer.model, data_loader=a_trainer.test_data_loader, device=a_trainer.device)
-
+    total_error_dict = test_with_pyscf(model=a_trainer.model, data_loader=a_trainer.test_data_loader,
+                                       device=a_trainer.device, cubes_abs_folder=cubes_abs_folder, n_grid=75)
 
     with open('test_results.json', 'w') as f:
         json.dump(total_error_dict, f, indent=2)
 
+    process_batch_cube_file(cubes_abs_folder)
     pprint(total_error_dict)
