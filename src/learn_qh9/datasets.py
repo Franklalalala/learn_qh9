@@ -49,7 +49,16 @@ convention_dict = {
             1: [0, 1, 2], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
             8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
         }
-    )
+    ),
+    'back_2_thu_pyscf': Namespace(
+        atom_to_orbitals_map={1: 'sssp', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
+        orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2, 3], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        },
+    ),
 }
 
 atomrefs = {
