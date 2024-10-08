@@ -287,20 +287,20 @@ def get_orbital_labels(atom_symbols, orbital_configs):
     """
     orbital_labels = []
 
-    for atom in atom_symbols:
+    for atom_idx, atom in enumerate(atom_symbols):
         if atom not in orbital_configs:
             raise ValueError(f"Orbital configuration for atom {atom} not found.")
 
         atom_orbitals = orbital_configs[atom]
         for orbital in atom_orbitals:
             if orbital == 's':
-                orbital_labels.append('s')
+                orbital_labels.append(f'{atom_idx}{atom}_s')
             elif orbital == 'p':
-                orbital_labels.extend(['p'] * 3)
+                orbital_labels.extend([f'{atom_idx}{atom}_p'] * 3)
             elif orbital == 'd':
-                orbital_labels.extend(['d'] * 5)
+                orbital_labels.extend([f'{atom_idx}{atom}_d'] * 5)
             elif orbital == 'f':
-                orbital_labels.extend(['f'] * 7)
+                orbital_labels.extend([f'{atom_idx}{atom}_f'] * 7)
             else:
                 raise ValueError(f"Unknown orbital type: {orbital}")
 
