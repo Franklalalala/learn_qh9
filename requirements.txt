@@ -10,3 +10,4 @@ e3nn
 numpy
 matplotlib
 lmdb
+pandas

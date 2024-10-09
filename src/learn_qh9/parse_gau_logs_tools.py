@@ -12,6 +12,7 @@ import numpy as np
 from ase import Atoms, Atom
 from tqdm import tqdm
 import lmdb
+import pandas as pd
 
 orbital_idx_map = {
     's': [0],
@@ -305,6 +306,11 @@ def get_orbital_labels(atom_symbols, orbital_configs):
                 raise ValueError(f"Unknown orbital type: {orbital}")
 
     return orbital_labels
+
+
+def add_orbital_labels_2_matrix(matrix, orbital_labels):
+    df = pd.DataFrame(matrix, index=orbital_labels, columns=orbital_labels)
+    return df
 
 
 def matrix_to_image(matrix, filename='matrix_image.png', orbital_labels=None, pic_size=30):
