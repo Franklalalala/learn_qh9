@@ -137,7 +137,7 @@ class Trainer:
         self.best_val_result = float('inf')
         train_iterator = iter(self.train_data_loader)
 
-        for batch_idx in range(self.params['training']['total_steps'] + 10000):
+        for batch_idx in range(self.params['training']['total_steps']):
             try:
                 batch = next(train_iterator)
                 batch = self.post_processing(batch)
