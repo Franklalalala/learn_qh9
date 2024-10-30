@@ -127,12 +127,17 @@ def matrix_transform(matrices, atoms, convention='pyscf_631G'):
 
 
 class CustomizedQH9Stable(InMemoryDataset):
-    def __init__(self, src_lmdb_folder_path: str, db_workbase='datasets/', split='random', transform=None,
-                 pre_transform=None, pre_filter=None, convention='pyscf_def2svp', is_debug=False):
-        self.is_debug = is_debug
+    def __init__(self, src_lmdb_folder_path: str = None, db_workbase='datasets/', split='random',
+                 transform=None, pre_transform=None, pre_filter=None, convention='pyscf_def2svp',
+                 is_debug=False, split_flag=None):
+        if split == 'pre_splitted':
+            assert split_flag is not None, "Must provide split_flag for 'pre_splitted' split"
+            self.split_flag = split_flag
+
         self.src_lmdb_folder_path = src_lmdb_folder_path
+        self.is_debug = is_debug
         db_workbase = os.path.abspath(db_workbase)
-        self.root = osp.join(db_workbase, 'QH9Stable')
+        self.root = osp.join(db_workbase, split_flag)
         self.split = split
         self.orbital_mask = {}
 
@@ -152,8 +157,7 @@ class CustomizedQH9Stable(InMemoryDataset):
         self.convention = convention
 
         super(CustomizedQH9Stable, self).__init__(self.root, transform, pre_transform, pre_filter)
-        self.slices = {
-            'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
+        self.slices = {'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
 
     @property
     def processed_file_names(self):
@@ -161,9 +165,14 @@ class CustomizedQH9Stable(InMemoryDataset):
             return ['processed_QH9Stable_random.pt', 'QH9Stable.lmdb/data.mdb']
         elif self.split == 'size_ood':
             return ['processed_QH9Stable_size_ood.pt', 'QH9Stable.lmdb/data.mdb']
+        elif self.split == 'pre_splitted':
+            return ['processed_QH9Stable_pre_splitted.pt', 'QH9Stable.lmdb/data.mdb']
 
     def process(self):
         new_db_folder_path = os.path.join(self.processed_dir, 'QH9Stable.lmdb')
+        if self.split == 'pre_splitted':
+            self.src_lmdb_folder_path = os.path.join(self.src_lmdb_folder_path, self.split_flag)
+
         if self.is_debug:
             import shutil
             shutil.copytree(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
@@ -180,6 +189,8 @@ class CustomizedQH9Stable(InMemoryDataset):
             train_mask = indices[:data_split[0]]
             val_mask = indices[data_split[0]:data_split[0] + data_split[1]]
             test_mask = indices[data_split[0] + data_split[1]:]
+            print(f'Number of train/valid/test is {len(train_mask)}/{len(val_mask)}/{len(test_mask)}')
+
 
         elif self.split == 'size_ood':
             print('Size OOD splitting...')
@@ -195,8 +206,16 @@ class CustomizedQH9Stable(InMemoryDataset):
             train_mask = train_indices[0].astype(np.int64)
             val_mask = val_indices[0].astype(np.int64)
             test_mask = test_indices[0].astype(np.int64)
+            print(f'Number of train/valid/test is {len(train_mask)}/{len(val_mask)}/{len(test_mask)}')
 
-        print(f'Number of train/valid/test is {len(train_mask)}/{len(val_mask)}/{len(test_mask)}')
+
+        elif self.split == 'pre_splitted':
+            print(f'Loading {self.split_flag} datasets...')
+            lmdb_size = 10
+            train_mask = np.random.RandomState(seed=43).permutation(lmdb_size)
+            val_mask = np.random.RandomState(seed=43).permutation(lmdb_size)
+            test_mask = np.random.RandomState(seed=43).permutation(lmdb_size)
+
         torch.save((train_mask, val_mask, test_mask), self.processed_paths[0])
         self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])
 

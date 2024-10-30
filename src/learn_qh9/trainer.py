@@ -13,6 +13,7 @@ import time
 
 logger = set_logger()
 
+
 class Trainer:
     def __init__(self, params):
         self.params = params
@@ -45,7 +46,7 @@ class Trainer:
                     else:
                         self.device = device
                     torch.cuda.manual_seed_all(self.params['general']['seed'])
-                except:
+                except Exception as e:
                     logger.warning(f"{e}. Defaulting to 'cpu'.")
                     self.device = torch.device('cpu')
             else:
@@ -68,35 +69,58 @@ class Trainer:
 
     def setup_datasets(self):
         src_lmdb_folder_path = os.path.abspath(self.params['dataset']['src_lmdb_folder_path'])
-        logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
         if 'convention' not in self.params['dataset'].keys():
             self.params["dataset"].update({'convention': 'pyscf_def2svp'})
             logger.info('Convention not found in parameter dataset filed, set it as default pyscf_def2svp.')
-        dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
-                                      db_workbase=self.data_dir,
-                                      split=self.params['dataset']['split'],
-                                      convention=self.params['dataset']['convention'],
-                                      is_debug=self.is_debug)
-        if self.is_debug:
-            train_dataset = dataset[list(dataset.train_mask)]
-            valid_dataset = dataset[list(dataset.val_mask)]
-            test_dataset = dataset[list(dataset.test_mask)]
-        else:
-            train_dataset = dataset[dataset.train_mask]
-            valid_dataset = dataset[dataset.val_mask]
-            test_dataset = dataset[dataset.test_mask]
+        if self.params['dataset']['split'] == 'pre_splitted':
+            self.train_data_loader = DataLoader(
+                CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
+                                    split_flag='train', convention=self.params['dataset']['convention'], db_workbase=self.data_dir),
+                batch_size=self.params['training']['train_batch_size'], shuffle=True,
+                num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
 
-        g = torch.Generator()
-        g.manual_seed(self.params['general']['seed'])
-        self.train_data_loader = DataLoader(
-            train_dataset, batch_size=self.params['training']['train_batch_size'], shuffle=True,
-            num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'], generator=g)
-        self.val_data_loader = DataLoader(
-            valid_dataset, batch_size=self.params['validation']['valid_batch_size'], shuffle=False,
-            num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
-        self.test_data_loader = DataLoader(
-            test_dataset, batch_size=self.params['testing']['test_batch_size'], shuffle=False,
-            num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
+            self.val_data_loader = DataLoader(
+                CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
+                                    split_flag='valid', convention=self.params['dataset']['convention'], db_workbase=self.data_dir),
+                batch_size=self.params['validation']['valid_batch_size'], shuffle=False,
+                num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
+
+            self.test_data_loader = DataLoader(
+                CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
+                                    split_flag='test', convention=self.params['dataset']['convention'], db_workbase=self.data_dir),
+                batch_size=self.params['testing']['test_batch_size'], shuffle=False,
+                num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
+
+        else:
+            logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
+
+            dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path,
+                                          db_workbase=self.data_dir,
+                                          split=self.params['dataset']['split'],
+                                          convention=self.params['dataset']['convention'],
+                                          is_debug=self.is_debug)
+            if self.is_debug:
+                train_dataset = dataset[list(dataset.train_mask)]
+                valid_dataset = dataset[list(dataset.val_mask)]
+                test_dataset = dataset[list(dataset.test_mask)]
+            else:
+                train_dataset = dataset[dataset.train_mask]
+                valid_dataset = dataset[dataset.val_mask]
+                test_dataset = dataset[dataset.test_mask]
+
+            g = torch.Generator()
+            g.manual_seed(self.params['general']['seed'])
+            self.train_data_loader = DataLoader(
+                train_dataset, batch_size=self.params['training']['train_batch_size'], shuffle=True,
+                num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'],
+                generator=g)
+            self.val_data_loader = DataLoader(
+                valid_dataset, batch_size=self.params['validation']['valid_batch_size'], shuffle=False,
+                num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
+            self.test_data_loader = DataLoader(
+                test_dataset, batch_size=self.params['testing']['test_batch_size'], shuffle=False,
+                num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
+
 
     def setup_model(self):
         self.model = QHNet(
