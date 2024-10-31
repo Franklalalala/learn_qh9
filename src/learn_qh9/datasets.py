@@ -171,13 +171,13 @@ class CustomizedQH9Stable(InMemoryDataset):
     def process(self):
         new_db_folder_path = os.path.join(self.processed_dir, 'QH9Stable.lmdb')
         if self.split == 'pre_splitted':
-            self.src_lmdb_folder_path = os.path.join(self.src_lmdb_folder_path, self.split_flag)
+            self.sub_src_lmdb_folder_path = os.path.join(self.src_lmdb_folder_path, self.split_flag)
 
         if self.is_debug:
             import shutil
-            shutil.copytree(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+            shutil.copytree(src=self.sub_src_lmdb_folder_path, dst=new_db_folder_path)
         else:
-            os.symlink(src=self.src_lmdb_folder_path, dst=new_db_folder_path)
+            os.symlink(src=self.sub_src_lmdb_folder_path, dst=new_db_folder_path)
 
         if self.split == 'random':
             print('Random splitting...')
@@ -211,10 +211,13 @@ class CustomizedQH9Stable(InMemoryDataset):
 
         elif self.split == 'pre_splitted':
             print(f'Loading {self.split_flag} datasets...')
-            lmdb_size = 10
-            train_mask = np.random.RandomState(seed=43).permutation(lmdb_size)
-            val_mask = np.random.RandomState(seed=43).permutation(lmdb_size)
-            test_mask = np.random.RandomState(seed=43).permutation(lmdb_size)
+
+            train_lmdb_size = get_lmdb_size(os.path.join(self.src_lmdb_folder_path, 'train'))
+            train_mask = np.arange(train_lmdb_size)
+            valid_lmdb_size = get_lmdb_size(os.path.join(self.src_lmdb_folder_path, 'valid'))
+            val_mask = np.arange(valid_lmdb_size)
+            test_lmdb_size = get_lmdb_size(os.path.join(self.src_lmdb_folder_path, 'test'))
+            test_mask = np.arange(test_lmdb_size)
 
         torch.save((train_mask, val_mask, test_mask), self.processed_paths[0])
         self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])

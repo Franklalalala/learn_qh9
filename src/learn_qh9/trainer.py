@@ -73,24 +73,27 @@ class Trainer:
             self.params["dataset"].update({'convention': 'pyscf_def2svp'})
             logger.info('Convention not found in parameter dataset filed, set it as default pyscf_def2svp.')
         if self.params['dataset']['split'] == 'pre_splitted':
-            self.train_data_loader = DataLoader(
-                CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
-                                    split_flag='train', convention=self.params['dataset']['convention'], db_workbase=self.data_dir),
+            dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
+                                    split_flag='train', convention=self.params['dataset']['convention'], db_workbase=self.data_dir)
+            train_dataset = dataset[list(dataset.train_mask)]
+            self.train_data_loader = DataLoader(train_dataset,
                 batch_size=self.params['training']['train_batch_size'], shuffle=True,
                 num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
 
-            self.val_data_loader = DataLoader(
-                CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
-                                    split_flag='valid', convention=self.params['dataset']['convention'], db_workbase=self.data_dir),
+            dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
+                                    split_flag='valid', convention=self.params['dataset']['convention'], db_workbase=self.data_dir)
+            val_dataset = dataset[list(dataset.val_mask)]
+            self.val_data_loader = DataLoader(val_dataset,
                 batch_size=self.params['validation']['valid_batch_size'], shuffle=False,
                 num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
 
-            self.test_data_loader = DataLoader(
-                CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
-                                    split_flag='test', convention=self.params['dataset']['convention'], db_workbase=self.data_dir),
+            dataset = CustomizedQH9Stable(src_lmdb_folder_path=src_lmdb_folder_path, is_debug=self.is_debug, split='pre_splitted',
+                                    split_flag='test', convention=self.params['dataset']['convention'], db_workbase=self.data_dir)
+            test_dataset = dataset[list(dataset.test_mask)]
+            self.test_data_loader = DataLoader(test_dataset,
                 batch_size=self.params['testing']['test_batch_size'], shuffle=False,
                 num_workers=self.params['dataset']['num_workers'], pin_memory=self.params['dataset']['pin_memory'])
-
+            print(f'Number of train/valid/test is {len(dataset.train_mask)}/{len(dataset.val_mask)}/{len(dataset.test_mask)}')
         else:
             logger.info(f"loading source lmdb dataset from {src_lmdb_folder_path}...")
 
