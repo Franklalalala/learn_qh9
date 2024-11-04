@@ -620,7 +620,7 @@ def apply_phase_signs_to_matrix(matrix, phase_sign_list):
     return modified_matrix
 
 
-def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_path: str, batch_size: int = 1000):
+def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_path: str, batch_size: int = 1000, match_string: str = r'ep-(\d+)_vum'):
     abs_gau_path_list = []
     ep_id_list = []
 
@@ -630,7 +630,7 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
             abs_gau_path_list.append(path)
 
             # Extract the episode ID from the path using regex
-            match = re.search(r'ep-(\d+)_vum', path)
+            match = re.search(match_string, path)
             ep_id = match.group(1)
             ep_id_list.append(ep_id)
 
