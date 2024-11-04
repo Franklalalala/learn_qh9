@@ -139,14 +139,15 @@ class CustomizedQH9Stable(InMemoryDataset):
     def __init__(self, src_lmdb_folder_path: str = None, db_workbase='datasets/', split='random',
                  transform=None, pre_transform=None, pre_filter=None, convention='pyscf_def2svp',
                  is_debug=False, split_flag=None):
+        db_workbase = os.path.abspath(db_workbase)
+        self.root = db_workbase
         if split == 'pre_splitted':
             assert split_flag is not None, "Must provide split_flag for 'pre_splitted' split"
             self.split_flag = split_flag
+            self.root = osp.join(db_workbase, split_flag)
 
         self.src_lmdb_folder_path = src_lmdb_folder_path
         self.is_debug = is_debug
-        db_workbase = os.path.abspath(db_workbase)
-        self.root = osp.join(db_workbase, split_flag)
         self.split = split
         self.orbital_mask = {}
 
@@ -181,6 +182,8 @@ class CustomizedQH9Stable(InMemoryDataset):
         new_db_folder_path = os.path.join(self.processed_dir, 'QH9Stable.lmdb')
         if self.split == 'pre_splitted':
             self.sub_src_lmdb_folder_path = os.path.join(self.src_lmdb_folder_path, self.split_flag)
+        else:
+            self.sub_src_lmdb_folder_path = self.src_lmdb_folder_path
 
         if self.is_debug:
             import shutil
