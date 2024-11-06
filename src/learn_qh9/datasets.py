@@ -13,58 +13,39 @@ from torch_geometric.data import InMemoryDataset, Data
 BOHR2ANG = 1.8897259886
 
 convention_dict = {
-    'pyscf_631G': Namespace(
-        atom_to_orbitals_map={1: 'ss', 6: 'ssspp', 7: 'ssspp', 8: 'ssspp', 9: 'ssspp'},
-        orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
-        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd':
-            [1, 1, 1, 1, 1]},
-        orbital_order_map={
-            1: [0, 1], 6: [0, 1, 2, 3, 4], 7: [0, 1, 2, 3, 4],
-            8: [0, 1, 2, 3, 4], 9: [0, 1, 2, 3, 4]
-        },
-    ),
     'pyscf_def2svp': Namespace(
-        atom_to_orbitals_map={1: 'ssp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
+        atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
         orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
-            1: [0, 1, 2], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
+            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
             8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
         },
     ),
     'pyscf_6311_plus_gdp': Namespace(
-        atom_to_orbitals_map={1: 'sssp', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
+        atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
         orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
-            1: [0, 1, 2, 3], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            1: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         },
     ),
     'back2pyscf': Namespace(
-        atom_to_orbitals_map={1: 'ssp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
+        atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
         orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
-            1: [0, 1, 2], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
-            8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
-        }
-    ),
-    'back2pyscf_v2': Namespace(
-        atom_to_orbitals_map={1: 'ssp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
-        orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
-        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
-        orbital_order_map={
-            1: [0, 1, 2], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
+            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
             8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
         }
     ),
     'back_2_thu_pyscf': Namespace(
-        atom_to_orbitals_map={1: 'sssp', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
+        atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
         orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
-            1: [0, 1, 2, 3], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            1: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         },
     ),
@@ -155,9 +136,15 @@ class CustomizedQH9Stable(InMemoryDataset):
             self.full_orbitals = 14
             # orbital_mask_line1 = torch.tensor([0, 1, 2, 3, 4])
             orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
+            orbital_mask_line_li = torch.arange(9)
             orbital_mask_line2 = torch.arange(self.full_orbitals)
             for i in range(1, 11):
-                self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+                if i == 1:
+                    self.orbital_mask[i] = orbital_mask_line1
+                elif i == 3:
+                    self.orbital_mask[i] = orbital_mask_line_li
+                else:
+                    self.orbital_mask[i] = orbital_mask_line2
         else:
             self.full_orbitals = 22
             orbital_mask_line1 = torch.tensor([0, 1, 2, 5, 6, 7])
