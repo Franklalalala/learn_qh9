@@ -150,9 +150,16 @@ class Trainer:
             amsgrad=False)
 
         self.ema = ExponentialMovingAverage(self.model.parameters(), decay=0.99)
+
+        self.total_steps = self.params['training']['total_steps']
+        if 'cool_down_steps' in self.params['training'].keys():
+            self.total_steps_wo_cool_down = self.total_steps - self.params['training']['cool_down_steps']
+        else:
+            self.total_steps_wo_cool_down = self.total_steps
+
         self.scheduler = get_polynomial_decay_schedule_with_warmup(
             self.optimizer, num_warmup_steps=self.params['training']['warmup_steps'],
-            num_training_steps=self.params['training']['total_steps'],
+            num_training_steps=self.total_steps_wo_cool_down,
             lr_end=self.params['training']['lr_end'], power=1.0, last_epoch=-1)
 
     def setup_tensorboard(self):
@@ -164,7 +171,7 @@ class Trainer:
         self.best_val_result = float('inf')
         train_iterator = iter(self.train_data_loader)
 
-        for batch_idx in range(self.params['training']['total_steps']):
+        for batch_idx in range(self.total_steps):
             try:
                 batch = next(train_iterator)
                 batch = self.post_processing(batch)
