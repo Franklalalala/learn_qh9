@@ -163,6 +163,7 @@ class CustomizedQH9Stable(InMemoryDataset):
         self.convention = convention
 
         super(CustomizedQH9Stable, self).__init__(self.root, transform, pre_transform, pre_filter)
+        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])
         self.slices = {'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
 
     @property
@@ -186,6 +187,8 @@ class CustomizedQH9Stable(InMemoryDataset):
             shutil.copytree(src=self.sub_src_lmdb_folder_path, dst=new_db_folder_path)
         else:
             os.symlink(src=self.sub_src_lmdb_folder_path, dst=new_db_folder_path)
+
+        a=1
 
         if self.split == 'random':
             print('Random splitting...')

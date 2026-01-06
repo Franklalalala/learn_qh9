@@ -4,13 +4,14 @@ params = {
     'general': {
         'seed': 0,
         'device': 'cuda',
-        'output_dir': r'./output'
+        'output_dir': r'./output',
+        'is_debug': True
     },
     'dataset': {
         'src_lmdb_folder_path': r'./dummy_10',
         'split': 'random',
-        'num_workers': 4,
-        'pin_memory': True,
+        'num_workers': 0,
+        'pin_memory': False,
     },
     'training': {
         'train_batch_size': 4,
