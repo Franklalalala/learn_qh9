@@ -1,17 +1,14 @@
 import time
-
-import torch.nn.functional as F
-
 import math
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torch_cluster import radius_graph
-from e3nn import o3
 from torch_scatter import scatter
-from e3nn.nn import FullyConnectedNet, Gate, Activation
-from e3nn.o3 import Linear, TensorProduct, FullyConnectedTensorProduct
-import numpy as np
+from e3nn import o3
+from e3nn.nn import FullyConnectedNet
+from e3nn.o3 import Linear, TensorProduct
 
 
 def prod(x):
@@ -91,13 +88,7 @@ def get_feasible_irrep(irrep_in1, irrep_in2, cutoff_irrep_out, tp_mode="uvu"):
 def cutoff_function(x, cutoff):
     zeros = torch.zeros_like(x)
     x_ = torch.where(x < cutoff, x, zeros)
-    return torch.where(x < cutoff, torch.exp(-x_**2/((cutoff-x_)*(cutoff+x_))), zeros)
-
-
-def cutoff_function(x, cutoff):
-    zeros = torch.zeros_like(x)
-    x_ = torch.where(x < cutoff, x, zeros)
-    return torch.where(x < cutoff, torch.exp(-x_**2/((cutoff-x_)*(cutoff+x_))), zeros)
+    return torch.where(x < cutoff, torch.exp(-x_ ** 2 / ((cutoff - x_) * (cutoff + x_))), zeros)
 
 
 class ExponentialBernsteinRadialBasisFunctions(nn.Module):
@@ -107,12 +98,12 @@ class ExponentialBernsteinRadialBasisFunctions(nn.Module):
         self.ini_alpha = ini_alpha
         # compute values to initialize buffers
         logfactorial = np.zeros((num_basis_functions))
-        for i in range(2,num_basis_functions):
-            logfactorial[i] = logfactorial[i-1] + np.log(i)
-        v = np.arange(0,num_basis_functions)
-        n = (num_basis_functions-1)-v
-        logbinomial = logfactorial[-1]-logfactorial[v]-logfactorial[n]
-        #register buffers and parameters
+        for i in range(2, num_basis_functions):
+            logfactorial[i] = logfactorial[i - 1] + np.log(i)
+        v = np.arange(0, num_basis_functions)
+        n = (num_basis_functions - 1) - v
+        logbinomial = logfactorial[-1] - logfactorial[v] - logfactorial[n]
+        # register buffers and parameters
         self.register_buffer('cutoff', torch.tensor(cutoff, dtype=torch.float32))
         self.register_buffer('logc', torch.tensor(logbinomial, dtype=torch.float32))
         self.register_buffer('n', torch.tensor(n, dtype=torch.float32))
@@ -121,12 +112,12 @@ class ExponentialBernsteinRadialBasisFunctions(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.constant_(self._alpha,  softplus_inverse(self.ini_alpha))
+        nn.init.constant_(self._alpha, softplus_inverse(self.ini_alpha))
 
     def forward(self, r):
         alpha = F.softplus(self._alpha)
         x = - alpha * r
-        x = self.logc + self.n * x + self.v * torch.log(- torch.expm1(x) )
+        x = self.logc + self.n * x + self.v * torch.log(- torch.expm1(x))
         rbf = cutoff_function(r, self.cutoff) * torch.exp(x)
         return rbf
 
@@ -160,6 +151,20 @@ class NormGate(torch.nn.Module):
         gated = self.mul(x[:, self.irrep.slices()[0].stop:], gates[:, self.irrep.slices()[0].stop:])
         x = torch.cat([gates[:, self.irrep.slices()[0]], gated], dim=-1)
         return x
+
+
+class InnerProduct(torch.nn.Module):
+    def __init__(self, irrep_in):
+        super(InnerProduct, self).__init__()
+        self.irrep_in = o3.Irreps(irrep_in).simplify()
+        irrep_out = o3.Irreps([(mul, "0e") for mul, _ in self.irrep_in])
+        instr = [(i, i, i, "uuu", False, 1 / ir.dim) for i, (mul, ir) in enumerate(self.irrep_in)]
+        self.tp = o3.TensorProduct(self.irrep_in, self.irrep_in, irrep_out, instr, irrep_normalization="component")
+        self.irrep_out = irrep_out.simplify()
+
+    def forward(self, features_1, features_2):
+        out = self.tp(features_1, features_2)
+        return out
 
 
 class ConvLayer(torch.nn.Module):
@@ -274,20 +279,6 @@ class ConvLayer(torch.nn.Module):
             out = out + self_x
 
         out = self.linear_out(out)
-        return out
-
-
-class InnerProduct(torch.nn.Module):
-    def __init__(self, irrep_in):
-        super(InnerProduct, self).__init__()
-        self.irrep_in = o3.Irreps(irrep_in).simplify()
-        irrep_out = o3.Irreps([(mul, "0e") for mul, _ in self.irrep_in])
-        instr = [(i, i, i, "uuu", False, 1/ir.dim) for i, (mul, ir) in enumerate(self.irrep_in)]
-        self.tp = o3.TensorProduct(self.irrep_in, self.irrep_in, irrep_out, instr, irrep_normalization="component")
-        self.irrep_out = irrep_out.simplify()
-
-    def forward(self, features_1, features_2):
-        out = self.tp(features_1, features_2)
         return out
 
 
@@ -419,7 +410,6 @@ class PairNetLayer(torch.nn.Module):
             internal_weights=True
         )
 
-
         self.fc_node_pair = FullyConnectedNet(
             [self.edge_attr_dim] + invariant_layers * [invariant_neurons] + [self.tp_node_pair.weight_numel],
             self.nonlinear_layer
@@ -463,7 +453,7 @@ class PairNetLayer(torch.nn.Module):
         return next(self.parameters()).device
 
     def forward(self, data, node_attr, node_pair_attr=None):
-        dst, src = data.edge_index_full
+        dst, src = data.full_edge_index
         node_attr_0 = self.linear_node_pair_inner(node_attr)
         s0 = self.inner_product(node_attr_0[dst], node_attr_0[src])[:, self.irrep_in_node.slices()[0].stop:]
         s0 = torch.cat([node_attr_0[dst][:, self.irrep_in_node.slices()[0]],
@@ -473,7 +463,7 @@ class PairNetLayer(torch.nn.Module):
         node_attr = self.linear_node_pair_n(node_attr)
 
         node_pair = self.tp_node_pair(node_attr[src], node_attr[dst],
-            self.fc_node_pair(data.full_edge_attr) * self.fc(s0))
+                                      self.fc_node_pair(data.full_edge_attr) * self.fc(s0))
 
         node_pair = self.norm_gate(node_pair)
         node_pair = self.linear_node_pair(node_pair)
@@ -586,7 +576,7 @@ class Expansion(nn.Module):
         else:
             x_in_s = [
                 x_in[:, i].reshape(batch_num, mul_ir.mul, mul_ir.ir.dim)
-            for i, mul_ir in zip(self.irrep_in.slices(), self.irrep_in)]
+                for i, mul_ir in zip(self.irrep_in.slices(), self.irrep_in)]
 
         outputs = {}
         flat_weight_index = 0
@@ -607,7 +597,7 @@ class Expansion(nn.Module):
                     weight = weights[:, flat_weight_index:flat_weight_index + prod(ins[-1])].reshape([-1] + ins[-1])
                     result = torch.einsum(f"bwuv, bwk-> buvk", weight, x1)
                     if ins[0] == 0 and bias_weights is not None:
-                        bias_weight = bias_weights[:,bias_weight_index:bias_weight_index + prod(ins[-1][1:])].\
+                        bias_weight = bias_weights[:, bias_weight_index:bias_weight_index + prod(ins[-1][1:])]. \
                             reshape([-1] + ins[-1][1:])
                         bias_weight_index += prod(ins[-1][1:])
                         result = result + bias_weight.unsqueeze(-1)
@@ -641,8 +631,8 @@ class Expansion(nn.Module):
 
     def get_expansion_path(self, irrep_in, irrep_out_1, irrep_out_2):
         instructions = []
-        for  i, (num_in, ir_in) in enumerate(irrep_in):
-            for  j, (num_out1, ir_out1) in enumerate(irrep_out_1):
+        for i, (num_in, ir_in) in enumerate(irrep_in):
+            for j, (num_out1, ir_out1) in enumerate(irrep_out_1):
                 for k, (num_out2, ir_out2) in enumerate(irrep_out_2):
                     if ir_in in ir_out1 * ir_out2:
                         instructions.append([i, j, k, True, 1.0, [num_in, num_out1, num_out2]])
@@ -666,14 +656,10 @@ class QHNet(nn.Module):
                  num_gnn_layers=5,
                  max_radius=12,
                  num_nodes=10,
-                 radius_embed_dim=32):  # maximum nuclear charge (+1, i.e. 87 for up to Rn) for embeddings, can be kept at default
+                 radius_embed_dim=32,
+                 convention="thu_cluster"):  # Added convention
         super(QHNet, self).__init__()
-        # store hyperparameter values
-        self.atom_orbs = [
-            [[8, 0, '1s'], [8, 0, '2s'], [8, 0, '3s'], [8, 1, '2p'], [8, 1, '3p'], [8, 2, '3d']],
-            [[1, 0, '1s'], [1, 0, '2s'], [1, 1, '2p']],
-            [[1, 0, '1s'], [1, 0, '2s'], [1, 1, '2p']]
-        ]
+        self.convention = convention
         self.order = sh_lmax
 
         self.sh_irrep = o3.Irreps.spherical_harmonics(lmax=self.order)
@@ -684,7 +670,8 @@ class QHNet(nn.Module):
         self.num_gnn_layers = num_gnn_layers
         self.node_embedding = nn.Embedding(num_nodes, self.hs)
         self.hidden_irrep = o3.Irreps(f'{self.hs}x0e + {self.hs}x1o + {self.hs}x2e + {self.hs}x3o + {self.hs}x4e')
-        self.hidden_bottle_irrep = o3.Irreps(f'{self.hbs}x0e + {self.hbs}x1o + {self.hbs}x2e + {self.hbs}x3o + {self.hbs}x4e')
+        self.hidden_bottle_irrep = o3.Irreps(
+            f'{self.hbs}x0e + {self.hbs}x1o + {self.hbs}x2e + {self.hbs}x3o + {self.hbs}x4e')
         self.hidden_irrep_base = o3.Irreps(f'{self.hs}x0e + {self.hs}x1e + {self.hs}x2e + {self.hs}x3e + {self.hs}x4e')
         self.hidden_bottle_irrep_base = o3.Irreps(
             f'{self.hbs}x0e + {self.hbs}x1e + {self.hbs}x2e + {self.hbs}x3e + {self.hbs}x4e')
@@ -698,7 +685,6 @@ class QHNet(nn.Module):
         self.e3_gnn_layer = nn.ModuleList()
         self.e3_gnn_node_pair_layer = nn.ModuleList()
         self.e3_gnn_node_layer = nn.ModuleList()
-        self.udpate_layer = nn.ModuleList()
         self.start_layer = 2
         for i in range(self.num_gnn_layers):
             input_irrep = self.input_irrep if i == 0 else self.hidden_irrep
@@ -715,37 +701,49 @@ class QHNet(nn.Module):
 
             if i > self.start_layer:
                 self.e3_gnn_node_layer.append(SelfNetLayer(
-                        irrep_in_node=self.hidden_irrep_base,
-                        irrep_bottle_hidden=self.hidden_irrep_base,
-                        irrep_out=self.hidden_irrep_base,
-                        sh_irrep=self.sh_irrep,
-                        edge_attr_dim=self.radius_embed_dim,
-                        node_attr_dim=self.hs,
-                        resnet=True,
+                    irrep_in_node=self.hidden_irrep_base,
+                    irrep_bottle_hidden=self.hidden_irrep_base,
+                    irrep_out=self.hidden_irrep_base,
+                    sh_irrep=self.sh_irrep,
+                    edge_attr_dim=self.radius_embed_dim,
+                    node_attr_dim=self.hs,
+                    resnet=True,
                 ))
 
                 self.e3_gnn_node_pair_layer.append(PairNetLayer(
-                        irrep_in_node=self.hidden_irrep_base,
-                        irrep_bottle_hidden=self.hidden_irrep_base,
-                        irrep_out=self.hidden_irrep_base,
-                        sh_irrep=self.sh_irrep,
-                        edge_attr_dim=self.radius_embed_dim,
-                        node_attr_dim=self.hs,
-                        invariant_layers=self.num_fc_layer,
-                        invariant_neurons=self.hs,
-                        resnet=True,
+                    irrep_in_node=self.hidden_irrep_base,
+                    irrep_bottle_hidden=self.hidden_irrep_base,
+                    irrep_out=self.hidden_irrep_base,
+                    sh_irrep=self.sh_irrep,
+                    edge_attr_dim=self.radius_embed_dim,
+                    node_attr_dim=self.hs,
+                    invariant_layers=self.num_fc_layer,
+                    invariant_neurons=self.hs,
+                    resnet=True,
                 ))
 
         self.nonlinear_layer = get_nonlinear('ssp')
         self.expand_ii, self.expand_ij, self.fc_ii, self.fc_ij, self.fc_ii_bias, self.fc_ij_bias = \
             nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict(), nn.ModuleDict()
+
+        # Define output irreps based on convention
+        if convention == 'pyscf_6311_plus_gdp':
+            out_irreps = "5x0e + 4x1e + 1x2e"
+        elif convention == 'thu_cluster':
+            # 4s + 3p + 1d = 18 orbitals
+            out_irreps = "4x0e + 3x1e + 1x2e"
+        else:
+            # Default def2svp: 3s + 2p + 1d = 14 orbitals
+            out_irreps = "3x0e + 2x1e + 1x2e"
+
         for name in {"hamiltonian"}:
-            input_expand_ii = o3.Irreps(f"{self.hbs}x0e + {self.hbs}x1e + {self.hbs}x2e + {self.hbs}x3e + {self.hbs}x4e")
+            input_expand_ii = o3.Irreps(
+                f"{self.hbs}x0e + {self.hbs}x1e + {self.hbs}x2e + {self.hbs}x3e + {self.hbs}x4e")
 
             self.expand_ii[name] = Expansion(
                 input_expand_ii,
-                o3.Irreps("3x0e + 2x1e + 1x2e"),
-                o3.Irreps("3x0e + 2x1e + 1x2e")
+                o3.Irreps(out_irreps),
+                o3.Irreps(out_irreps)
             )
             self.fc_ii[name] = torch.nn.Sequential(
                 nn.Linear(self.hs, self.hs),
@@ -760,8 +758,8 @@ class QHNet(nn.Module):
 
             self.expand_ij[name] = Expansion(
                 o3.Irreps(f'{self.hbs}x0e + {self.hbs}x1e + {self.hbs}x2e + {self.hbs}x3e + {self.hbs}x4e'),
-                o3.Irreps("3x0e + 2x1e + 1x2e"),
-                o3.Irreps("3x0e + 2x1e + 1x2e")
+                o3.Irreps(out_irreps),
+                o3.Irreps(out_irreps)
             )
 
             self.fc_ij[name] = torch.nn.Sequential(
@@ -778,6 +776,10 @@ class QHNet(nn.Module):
 
         self.output_ii = Linear(self.hidden_irrep, self.hidden_bottle_irrep)
         self.output_ij = Linear(self.hidden_irrep, self.hidden_bottle_irrep)
+
+        self.orbital_mask = self.get_orbital_mask()
+        for key in self.orbital_mask.keys():
+            self.orbital_mask[key] = self.orbital_mask[key].to(self.device)
 
     def get_number_of_parameters(self):
         num = 0
@@ -802,13 +804,13 @@ class QHNet(nn.Module):
         data.node_attr, data.edge_index, data.edge_attr, data.edge_sh = \
             node_attr, edge_index, rbf_new, edge_sh
 
-        _, edge_index_full, full_edge_attr, full_edge_sh, transpose_edge_index = \
-            self.build_graph(data, edge_index=data.edge_index_full)
+        _, full_edge_index, full_edge_attr, full_edge_sh, transpose_edge_index = \
+            self.build_graph(data, max_radius=10000)
 
-        data.edge_index_full, data.full_edge_attr, data.full_edge_sh = \
-            edge_index_full, full_edge_attr, full_edge_sh
+        data.full_edge_index, data.full_edge_attr, data.full_edge_sh = \
+            full_edge_index, full_edge_attr, full_edge_sh
 
-        full_dst, full_src = data.edge_index_full
+        full_dst, full_src = data.full_edge_index
 
         tic = time.time()
         fii = None
@@ -816,8 +818,8 @@ class QHNet(nn.Module):
         for layer_idx, layer in enumerate(self.e3_gnn_layer):
             node_attr = layer(data, node_attr)
             if layer_idx > self.start_layer:
-                fii = self.e3_gnn_node_layer[layer_idx-self.start_layer-1](data, node_attr, fii)
-                fij = self.e3_gnn_node_pair_layer[layer_idx-self.start_layer-1](data, node_attr, fij)
+                fii = self.e3_gnn_node_layer[layer_idx - self.start_layer - 1](data, node_attr, fii)
+                fij = self.e3_gnn_node_pair_layer[layer_idx - self.start_layer - 1](data, node_attr, fij)
 
         fii = self.output_ii(fii)
         fij = self.output_ij(fij)
@@ -836,25 +838,26 @@ class QHNet(nn.Module):
             results['hamiltonian'] = hamiltonian_matrix
             results['duration'] = torch.tensor([time.time() - tic])
         else:
-            ret_hamiltonian_diagonal_matrix = hamiltonian_diagonal_matrix +\
-                                          hamiltonian_diagonal_matrix.transpose(-1, -2)
+            ret_hamiltonian_diagonal_matrix = hamiltonian_diagonal_matrix + \
+                                              hamiltonian_diagonal_matrix.transpose(-1, -2)
 
             # the transpose should considers the i, j
             ret_hamiltonian_non_diagonal_matrix = hamiltonian_non_diagonal_matrix + \
-                      hamiltonian_non_diagonal_matrix[transpose_edge_index].transpose(-1, -2)
+                                                  hamiltonian_non_diagonal_matrix[transpose_edge_index].transpose(-1,
+                                                                                                                  -2)
 
             results = {}
             results['hamiltonian_diagonal_blocks'] = ret_hamiltonian_diagonal_matrix
             results['hamiltonian_non_diagonal_blocks'] = ret_hamiltonian_non_diagonal_matrix
         return results
 
-    def build_graph(self, data, max_radius=None, edge_index=None):
+    def build_graph(self, data, max_radius, edge_index=None):
         node_attr = data.atoms.squeeze()
-        assert edge_index is not None or max_radius is not None, "please input max_radius or edge_index"
-        if edge_index is not None:
-            radius_edges = edge_index
-        else:
+
+        if edge_index is None:
             radius_edges = radius_graph(data.pos, max_radius, data.batch, max_num_neighbors=data.num_nodes)
+        else:
+            radius_edges = data.full_edge_index
 
         dst, src = radius_edges
         edge_vec = data.pos[dst.long()] - data.pos[src.long()]
@@ -867,24 +870,27 @@ class QHNet(nn.Module):
         start_edge_index = 0
         all_transpose_index = []
         for graph_idx in range(data.ptr.shape[0] - 1):
-            num_nodes = data.ptr[graph_idx +1] - data.ptr[graph_idx]
-            graph_edge_index = radius_edges[:, start_edge_index:start_edge_index+num_nodes*(num_nodes-1)]
+            num_nodes = data.ptr[graph_idx + 1] - data.ptr[graph_idx]
+            graph_edge_index = radius_edges[:, start_edge_index:start_edge_index + num_nodes * (num_nodes - 1)]
             sub_graph_edge_index = graph_edge_index - data.ptr[graph_idx]
             bias = (sub_graph_edge_index[0] < sub_graph_edge_index[1]).type(torch.int)
             transpose_index = sub_graph_edge_index[0] * (num_nodes - 1) + sub_graph_edge_index[1] - bias
             transpose_index = transpose_index + start_edge_index
             all_transpose_index.append(transpose_index)
-            start_edge_index = start_edge_index + num_nodes*(num_nodes-1)
+            start_edge_index = start_edge_index + num_nodes * (num_nodes - 1)
+
         return node_attr, radius_edges, rbf, edge_sh, torch.cat(all_transpose_index, dim=-1)
 
     def build_final_matrix(self, data, diagonal_matrix, non_diagonal_matrix):
+        # print(self.orbital_mask)
+        # concate the blocks together and then select once.
         final_matrix = []
-        dst, src = data.edge_index_full
+        dst, src = data.full_edge_index
         for graph_idx in range(data.ptr.shape[0] - 1):
             matrix_block_col = []
-            for src_idx in range(data.ptr[graph_idx], data.ptr[graph_idx+1]):
+            for src_idx in range(data.ptr[graph_idx], data.ptr[graph_idx + 1]):
                 matrix_col = []
-                for dst_idx in range(data.ptr[graph_idx], data.ptr[graph_idx+1]):
+                for dst_idx in range(data.ptr[graph_idx], data.ptr[graph_idx + 1]):
                     if src_idx == dst_idx:
                         matrix_col.append(diagonal_matrix[src_idx].index_select(
                             -2, self.orbital_mask[data.atoms[dst_idx].item()]).index_select(
@@ -905,23 +911,67 @@ class QHNet(nn.Module):
         return final_matrix
 
     def get_orbital_mask(self):
-        idx_1s_2s = torch.tensor([0, 1])
-        idx_2p = torch.tensor([3, 4, 5])
-        orbital_mask_line1 = torch.cat([idx_1s_2s, idx_2p])
-        orbital_mask_line2 = torch.arange(14)
         orbital_mask = {}
-        for i in range(1, 11):
-            orbital_mask[i] = orbital_mask_line1 if i <=2 else orbital_mask_line2
+        if self.convention == 'pyscf_6311_plus_gdp':
+            # 22 Orbitals
+            self.full_orbitals = 22
+            orbital_mask_line1 = torch.tensor([0, 1, 2, 5, 6, 7])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+
+        elif self.convention == 'thu_cluster':
+            # 18 Orbitals (Max is P/S: 4s3p1d)
+            self.full_orbitals = 18
+
+            # H (1): ssp (s1, s2, p1) -> [0, 1, 4, 5, 6]
+            mask_h = torch.tensor([0, 1, 4, 5, 6], dtype=torch.long)
+
+            # Li (3): ssspp (s1, s2, s3, p1, p2) -> [0, 1, 2, 4, 5, 6, 7, 8, 9]
+            mask_li = torch.tensor([0, 1, 2, 4, 5, 6, 7, 8, 9], dtype=torch.long)
+
+            # B-F (5-9): sssppd (s1, s2, s3, p1, p2, d1) -> [0..2, 4..9, 13..17]
+            mask_row2 = torch.tensor([0, 1, 2, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17], dtype=torch.long)
+
+            # P-S (15-16): sssspppd -> Full 18
+            mask_full = torch.arange(self.full_orbitals, dtype=torch.long)
+
+            orbital_mask[1] = mask_h
+            orbital_mask[3] = mask_li
+            for z in [5, 6, 7, 8, 9]:
+                orbital_mask[z] = mask_row2
+            for z in [15, 16]:
+                orbital_mask[z] = mask_full
+
+            # Fallback for others (use row2 logic if in first 10, else warning/error might be needed but keeping consistent with dataset)
+            for i in range(1, 11):
+                if i not in orbital_mask:
+                    orbital_mask[i] = mask_row2 if i > 3 else mask_h
+
+        else:
+            # Default pyscf_def2svp (14 orbitals)
+            self.full_orbitals = 14
+            orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+
         return orbital_mask
 
     def split_matrix(self, data):
-        diagonal_matrix, non_diagonal_matrix = \
-            torch.zeros(data.atoms.shape[0], 14, 14).type(data.pos.type()).to(self.device), \
-            torch.zeros(data.edge_index.shape[1], 14, 14).type(data.pos.type()).to(self.device)
+        # Determine matrix size based on convention
+        if self.convention == 'pyscf_6311_plus_gdp':
+            dim = 22
+        elif self.convention == 'thu_cluster':
+            dim = 18
+        else:
+            dim = 14
 
-        data.matrix =  data.matrix.reshape(
+        diagonal_matrix = torch.zeros(data.atoms.shape[0], dim, dim).type(data.pos.type()).to(self.device)
+        non_diagonal_matrix = torch.zeros(data.edge_index.shape[1], dim, dim).type(data.pos.type()).to(self.device)
+
+        data.matrix = data.matrix.reshape(
             len(data.ptr) - 1, data.matrix.shape[-1], data.matrix.shape[-1])
-
         num_atoms = 0
         num_edges = 0
         for graph_idx in range(data.ptr.shape[0] - 1):
@@ -929,11 +979,12 @@ class QHNet(nn.Module):
             for atom_idx in data.atoms[range(data.ptr[graph_idx], data.ptr[graph_idx + 1])]:
                 slices.append(slices[-1] + len(self.orbital_mask[atom_idx.item()]))
 
-            for node_idx in range(data.ptr[graph_idx], data.ptr[graph_idx+1]):
+            for node_idx in range(data.ptr[graph_idx], data.ptr[graph_idx + 1]):
                 node_idx = node_idx - num_atoms
                 orb_mask = self.orbital_mask[data.atoms[node_idx].item()]
                 diagonal_matrix[node_idx][orb_mask][:, orb_mask] = \
-                    data.matrix[graph_idx][slices[node_idx]: slices[node_idx+1], slices[node_idx]: slices[node_idx+1]]
+                    data.matrix[graph_idx][slices[node_idx]: slices[node_idx + 1],
+                    slices[node_idx]: slices[node_idx + 1]]
 
             for edge_index_idx in range(num_edges, data.edge_index.shape[1]):
                 dst, src = data.edge_index[:, edge_index_idx]
@@ -944,7 +995,8 @@ class QHNet(nn.Module):
                 orb_mask_src = self.orbital_mask[data.atoms[src].item()]
                 graph_dst, graph_src = dst - num_atoms, src - num_atoms
                 non_diagonal_matrix[edge_index_idx][orb_mask_dst][:, orb_mask_src] = \
-                    data.matrix[graph_idx][slices[graph_dst]: slices[graph_dst+1], slices[graph_src]: slices[graph_src+1]]
+                    data.matrix[graph_idx][slices[graph_dst]: slices[graph_dst + 1],
+                    slices[graph_src]: slices[graph_src + 1]]
 
             num_atoms = num_atoms + data.ptr[graph_idx + 1] - data.ptr[graph_idx]
         return diagonal_matrix, non_diagonal_matrix

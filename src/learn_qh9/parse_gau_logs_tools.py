@@ -652,15 +652,19 @@ def write_qh9_raw_lmdb(convention: dict, valid_gau_info_path: str, lmdb_folder_p
                     atom_types=atoms.symbols,
                     atom_to_transform_indices=convention['atom_to_transform_indices']
                 )
-                matrix = read_fock_from_gau_log(a_path, nbf=nbasis)
-                matrix = transform_matrix(matrix=matrix, transform_indices=molecule_transform_indices)
+                hamiltonian_matrix = read_fock_from_gau_log(a_path, nbf=nbasis)
+                hamiltonian_matrix = transform_matrix(matrix=hamiltonian_matrix, transform_indices=molecule_transform_indices)
+                density_matrix = read_density_from_gau_log(a_path, nbf=nbasis)
+                density_matrix = transform_matrix(matrix=density_matrix, transform_indices=molecule_transform_indices)
+
                 info_dict = {
                     'id': a_real_id,
                     'num_nodes': len(atoms),
                     'nbasis': nbasis,
                     'atoms': atoms.numbers.astype(np.int32).tobytes(),
                     'pos': atoms.positions.astype(np.float64).tobytes(),  # ang
-                    'Ham': matrix.astype(np.float64).tobytes(),
+                    'Ham': hamiltonian_matrix.astype(np.float64).tobytes(),
+                    'density_matrix': density_matrix.astype(np.float64).tobytes(),
                 }
                 info_dict = pickle.dumps(info_dict)
                 txn.put(idx.to_bytes(length=4, byteorder='big'), info_dict)

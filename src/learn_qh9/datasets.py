@@ -1,7 +1,7 @@
 import os
 import os.path as osp
 import pickle
-import shutil
+import logging
 from argparse import Namespace
 
 import lmdb
@@ -9,6 +9,9 @@ import numpy as np
 import torch
 from learn_qh9.tools import get_lmdb_size, get_readable_info_from_lmdb
 from torch_geometric.data import InMemoryDataset, Data
+
+# Use standard logger retrieval
+logger = logging.getLogger(__name__)
 
 BOHR2ANG = 1.8897259886
 
@@ -22,6 +25,21 @@ convention_dict = {
             8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
         },
     ),
+
+    'thu_cluster': Namespace(
+        atom_to_orbitals_map={
+            1: 'ssp', 3: 'ssspp', 5: 'sssppd', 6: 'sssppd', 7: 'sssppd',
+            8: 'sssppd', 9: 'sssppd', 15: 'sssspppd', 16: 'sssspppd'
+        },
+        orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 5: [0, 1, 2, 3, 4, 5],
+            6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5], 8: [0, 1, 2, 3, 4, 5],
+            9: [0, 1, 2, 3, 4, 5], 15: [0, 1, 2, 3, 4, 5, 6, 7], 16: [0, 1, 2, 3, 4, 5, 6, 7]
+        },
+    ),
+
     'gau_def2svp_2_pyscf': Namespace(
         atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
         orbital_idx_map={'s': [0], 'p': [0, 1, 2], 'd': [4, 2, 0, 1, 3]},
@@ -32,11 +50,13 @@ convention_dict = {
         },
     ),
     'pyscf_6311_plus_gdp': Namespace(
-        atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
+        atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd',
+                              9: 'sssssppppd'},
         orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
-            1: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            1: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         },
     ),
@@ -50,49 +70,44 @@ convention_dict = {
         }
     ),
     'back_2_thu_pyscf': Namespace(
-        atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd', 9: 'sssssppppd'},
+        atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd',
+                              9: 'sssssppppd'},
         orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
-            1: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            1: [0, 1, 2, 3], 3: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 6: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            7: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
             8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        },
+    ),
+    'back_thu_cluster': Namespace(
+        atom_to_orbitals_map={
+            1: 'ssp', 3: 'ssspp', 5: 'sssppd', 6: 'sssppd', 7: 'sssppd',
+            8: 'sssppd', 9: 'sssppd', 15: 'sssspppd', 16: 'sssspppd'
+        },
+        orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 5: [0, 1, 2, 3, 4, 5],
+            6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5], 8: [0, 1, 2, 3, 4, 5],
+            9: [0, 1, 2, 3, 4, 5], 15: [0, 1, 2, 3, 4, 5, 6, 7], 16: [0, 1, 2, 3, 4, 5, 6, 7]
         },
     ),
 }
 
-atomrefs = {
-    6: [0., 0., 0., 0., 0.],
-    7: [
-        -13.61312172, -1029.86312267, -1485.30251237, -2042.61123593,
-        -2713.48485589
-    ],
-    8: [
-        -13.5745904, -1029.82456413, -1485.26398105, -2042.5727046,
-        -2713.44632457
-    ],
-    9: [
-        -13.54887564, -1029.79887659, -1485.2382935, -2042.54701705,
-        -2713.42063702
-    ],
-    10: [
-        -13.90303183, -1030.25891228, -1485.71166277, -2043.01812778,
-        -2713.88796536
-    ],
-    11: [0., 0., 0., 0., 0.],
-}
+_ORB_DIM = {'s': 1, 'p': 3, 'd': 5}
 
-HAR2EV = 27.211386246
-KCALMOL2EV = 0.04336414
-conversion = torch.tensor([
-    1., 1., HAR2EV, HAR2EV, HAR2EV, 1., HAR2EV, HAR2EV, HAR2EV, HAR2EV, HAR2EV,
-    1., KCALMOL2EV, KCALMOL2EV, KCALMOL2EV, KCALMOL2EV, 1., 1., 1.
-])
 
-atomrefs_tensor = torch.zeros(5, 19)
-atomrefs_tensor[:, 7] = torch.tensor(atomrefs[7])
-atomrefs_tensor[:, 8] = torch.tensor(atomrefs[8])
-atomrefs_tensor[:, 9] = torch.tensor(atomrefs[9])
-atomrefs_tensor[:, 10] = torch.tensor(atomrefs[10])
+def infer_nbasis_from_atoms(atoms: np.ndarray, convention: str) -> int:
+    conv = convention_dict[convention]
+    total = 0
+    for a in atoms:
+        z = int(a)
+        if z not in conv.atom_to_orbitals_map:
+            raise KeyError(f"Atom Z={z} not in convention '{convention}' atom_to_orbitals_map")
+        for orb in conv.atom_to_orbitals_map[z]:
+            total += _ORB_DIM[orb]
+    return total
 
 
 def matrix_transform(matrices, atoms, convention='pyscf_631G'):
@@ -100,6 +115,7 @@ def matrix_transform(matrices, atoms, convention='pyscf_631G'):
     orbitals = ''
     orbitals_order = []
     for a in atoms:
+        a = int(a)
         offset = len(orbitals_order)
         orbitals += conv.atom_to_orbitals_map[a]
         orbitals_order += [idx + offset for idx in conv.orbital_order_map[a]]
@@ -128,7 +144,7 @@ def matrix_transform(matrices, atoms, convention='pyscf_631G'):
 class CustomizedQH9Stable(InMemoryDataset):
     def __init__(self, src_lmdb_folder_path: str = None, db_workbase='datasets/', split='random',
                  transform=None, pre_transform=None, pre_filter=None, convention='pyscf_def2svp',
-                 is_debug=False, split_flag=None):
+                 is_debug=False, split_flag=None, target='density_matrix', aux_keys_list=None):
         db_workbase = os.path.abspath(db_workbase)
         self.root = db_workbase
         if split == 'pre_splitted':
@@ -140,10 +156,34 @@ class CustomizedQH9Stable(InMemoryDataset):
         self.is_debug = is_debug
         self.split = split
         self.orbital_mask = {}
+        self.target = target
 
-        if convention != 'pyscf_6311_plus_gdp':
+        # Strictly use the provided list. If None, empty list (no aux data extracted).
+        self.aux_keys_list = aux_keys_list if aux_keys_list is not None else []
+
+        if convention == 'pyscf_6311_plus_gdp':
+            self.full_orbitals = 22
+            orbital_mask_line1 = torch.tensor([0, 1, 2, 5, 6, 7])
+            orbital_mask_line2 = torch.arange(self.full_orbitals)
+            for i in range(1, 11):
+                self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+
+        elif convention == 'thu_cluster':
+            self.full_orbitals = 18
+            orbital_mask_h = torch.tensor([0, 1, 4, 5, 6], dtype=torch.long)
+            orbital_mask_li = torch.tensor([0, 1, 2, 4, 5, 6, 7, 8, 9], dtype=torch.long)
+            orbital_mask_3s2p1d = torch.tensor([0, 1, 2, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17], dtype=torch.long)
+            orbital_mask_full = torch.arange(self.full_orbitals, dtype=torch.long)
+
+            self.orbital_mask[1] = orbital_mask_h
+            self.orbital_mask[3] = orbital_mask_li
+            for z in [5, 6, 7, 8, 9]:
+                self.orbital_mask[z] = orbital_mask_3s2p1d
+            for z in [15, 16]:
+                self.orbital_mask[z] = orbital_mask_full
+
+        else:
             self.full_orbitals = 14
-            # orbital_mask_line1 = torch.tensor([0, 1, 2, 3, 4])
             orbital_mask_line1 = torch.tensor([0, 1, 3, 4, 5])
             orbital_mask_line_li = torch.arange(9)
             orbital_mask_line2 = torch.arange(self.full_orbitals)
@@ -154,17 +194,13 @@ class CustomizedQH9Stable(InMemoryDataset):
                     self.orbital_mask[i] = orbital_mask_line_li
                 else:
                     self.orbital_mask[i] = orbital_mask_line2
-        else:
-            self.full_orbitals = 22
-            orbital_mask_line1 = torch.tensor([0, 1, 2, 5, 6, 7])
-            orbital_mask_line2 = torch.arange(self.full_orbitals)
-            for i in range(1, 11):
-                self.orbital_mask[i] = orbital_mask_line1 if i <= 2 else orbital_mask_line2
+
         self.convention = convention
 
         super(CustomizedQH9Stable, self).__init__(self.root, transform, pre_transform, pre_filter)
-        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])
-        self.slices = {'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
+        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0], weights_only=False)
+        self.slices = {
+            'id': torch.arange(self.train_mask.shape[0] + self.val_mask.shape[0] + self.test_mask.shape[0] + 1)}
 
     @property
     def processed_file_names(self):
@@ -188,8 +224,6 @@ class CustomizedQH9Stable(InMemoryDataset):
         else:
             os.symlink(src=self.sub_src_lmdb_folder_path, dst=new_db_folder_path)
 
-        a=1
-
         if self.split == 'random':
             print('Random splitting...')
             data_ratio = [0.8, 0.1, 0.1]
@@ -201,7 +235,6 @@ class CustomizedQH9Stable(InMemoryDataset):
             val_mask = indices[data_split[0]:data_split[0] + data_split[1]]
             test_mask = indices[data_split[0] + data_split[1]:]
             print(f'Number of train/valid/test is {len(train_mask)}/{len(val_mask)}/{len(test_mask)}')
-
 
         elif self.split == 'size_ood':
             print('Size OOD splitting...')
@@ -219,7 +252,6 @@ class CustomizedQH9Stable(InMemoryDataset):
             test_mask = test_indices[0].astype(np.int64)
             print(f'Number of train/valid/test is {len(train_mask)}/{len(val_mask)}/{len(test_mask)}')
 
-
         elif self.split == 'pre_splitted':
             print(f'Loading {self.split_flag} datasets...')
 
@@ -231,7 +263,7 @@ class CustomizedQH9Stable(InMemoryDataset):
             test_mask = np.arange(test_lmdb_size)
 
         torch.save((train_mask, val_mask, test_mask), self.processed_paths[0])
-        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0])
+        self.train_mask, self.val_mask, self.test_mask = torch.load(self.processed_paths[0], weights_only=False)
 
     def cut_matrix(self, matrix, atoms):
         all_diagonal_matrix_blocks = []
@@ -300,17 +332,49 @@ class CustomizedQH9Stable(InMemoryDataset):
         with db_env.begin() as txn:
             data_dict = txn.get(int(idx).to_bytes(length=4, byteorder='big'))
             data_dict = pickle.loads(data_dict)
-            _, num_nodes, atoms, pos, Ham = \
-                data_dict['id'], data_dict['num_nodes'], \
-                    np.frombuffer(data_dict['atoms'], np.int32), \
-                    np.frombuffer(data_dict['pos'], np.float64), \
-                    np.frombuffer(data_dict['Ham'], np.float64)
-            pos = pos.reshape(num_nodes, 3)
-            if 'nbasis' in data_dict.keys():
+
+            # --- 1. Extract Core Data ---
+            num_nodes = data_dict.get('num_nodes')
+            atoms = np.frombuffer(data_dict['atoms'], np.int32)
+            pos = np.frombuffer(data_dict['pos'], np.float64).reshape(num_nodes, 3)
+            Ham = np.frombuffer(data_dict[self.target], np.float64)
+
+            if 'nbasis' in data_dict:
                 num_orbitals = data_dict['nbasis']
             else:
-                num_orbitals = sum([5 if atom <= 2 else 14 for atom in atoms])
+                num_orbitals = infer_nbasis_from_atoms(atoms, self.convention)
             Ham = Ham.reshape(num_orbitals, num_orbitals)
+
+            # Create base Data object
             data = self.get_mol(atoms, pos, Ham)
+
+            # --- 2. Add ID ---
+            raw_id = data_dict.get('id', idx)
+            if isinstance(raw_id, (int, np.integer)):
+                data.original_id = torch.tensor([int(raw_id)], dtype=torch.long)
+            else:
+                data.original_id = raw_id
+
+            # --- 3. Extract Specific Aux Keys Only ---
+            for key in self.aux_keys_list:
+                if key in data_dict:
+                    val = data_dict[key]
+
+                    # Heuristic Type Conversion for Aux Data
+                    if isinstance(val, (int, float, np.number)):
+                        setattr(data, key, torch.tensor([val]))
+                    elif isinstance(val, np.ndarray):
+                        try:
+                            setattr(data, key, torch.from_numpy(val))
+                        except:
+                            setattr(data, key, val)
+                    elif isinstance(val, list):
+                        try:
+                            setattr(data, key, torch.tensor(val))
+                        except:
+                            setattr(data, key, val)
+                    else:
+                        setattr(data, key, val)
+
         db_env.close()
         return data
