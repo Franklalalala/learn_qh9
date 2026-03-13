@@ -9,6 +9,7 @@ from transformers import get_polynomial_decay_schedule_with_warmup
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from learn_qh9.datasets import CustomizedQH9Stable
+# from learn_qh9.models.ori_QHNet_with_bias import QHNet
 from learn_qh9.models.ori_QHNet_with_bias_norm import QHNet
 from learn_qh9.loss import criterion
 from learn_qh9.tools import set_logger

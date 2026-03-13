@@ -114,8 +114,11 @@ def get_nbasis(file_path):
     for line in lines:
         # Extract NBasis
         if line.strip().startswith("NBasis"):
-            nbasis = int(line.split()[2])
-            break
+            # 直接匹配第一个出现的连续数字
+            match = re.search(r"\d+", line)
+            if match:
+                nbasis = int(match.group(0)) # 恢复使用 group(0)
+                break
     if nbasis is None:
         print("NBasis keyword not found in the log file.")
     return nbasis
@@ -149,8 +152,11 @@ def get_basic_info(file_path):
     for line in lines[idx:]:
         # Extract NBasis
         if line.strip().startswith("NBasis"):
-            nbasis = int(line.split()[2])
-            break
+            # 直接匹配第一个出现的连续数字
+            match = re.search(r"\d+", line)
+            if match:
+                nbasis = int(match.group(0)) # 恢复使用 group(0)
+                break
     if nbasis is None:
         raise RuntimeError("NBasis keyword not found in the log file.")
     return nbasis, atoms

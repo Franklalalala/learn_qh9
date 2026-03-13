@@ -17,8 +17,94 @@ BOHR2ANG = 1.8897259886
 
 convention_dict = {
     'pyscf_def2svp': Namespace(
-        atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
+        atom_to_orbitals_map={
+            1: 'ssp',
+            3: 'ssspp',
+            5: 'sssppd',
+            6: 'sssppd',
+            7: 'sssppd',
+            8: 'sssppd',
+            9: 'sssppd',
+            15: 'sssspppd',
+            16: 'sssspppd',
+            17: 'sssspppd'
+        },
         orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2],
+            3: [0, 1, 2, 3, 4],
+            5: [0, 1, 2, 3, 4, 5],
+            6: [0, 1, 2, 3, 4, 5],
+            7: [0, 1, 2, 3, 4, 5],
+            8: [0, 1, 2, 3, 4, 5],
+            9: [0, 1, 2, 3, 4, 5],
+            15: [0, 1, 2, 3, 4, 5, 6, 7],
+            16: [0, 1, 2, 3, 4, 5, 6, 7],
+            17: [0, 1, 2, 3, 4, 5, 6, 7]
+        },
+    ),
+    'back2pyscf': Namespace(
+        atom_to_orbitals_map={
+            1: 'ssp',
+            3: 'ssspp',
+            5: 'sssppd',
+            6: 'sssppd',
+            7: 'sssppd',
+            8: 'sssppd',
+            9: 'sssppd',
+            15: 'sssspppd',
+            16: 'sssspppd',
+            17: 'sssspppd'
+        },
+        orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2],
+            3: [0, 1, 2, 3, 4],
+            5: [0, 1, 2, 3, 4, 5],
+            6: [0, 1, 2, 3, 4, 5],
+            7: [0, 1, 2, 3, 4, 5],
+            8: [0, 1, 2, 3, 4, 5],
+            9: [0, 1, 2, 3, 4, 5],
+            15: [0, 1, 2, 3, 4, 5, 6, 7],
+            16: [0, 1, 2, 3, 4, 5, 6, 7],
+            17: [0, 1, 2, 3, 4, 5, 6, 7]
+        }
+    ),
+
+    'thu_cluster': Namespace(
+        atom_to_orbitals_map={
+            1: 'ssp', 3: 'ssspp', 5: 'sssppd', 6: 'sssppd', 7: 'sssppd',
+            8: 'sssppd', 9: 'sssppd', 15: 'sssspppd', 16: 'sssspppd', 17: 'sssspppd'
+        },
+        orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 5: [0, 1, 2, 3, 4, 5],
+            6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5], 8: [0, 1, 2, 3, 4, 5],
+            9: [0, 1, 2, 3, 4, 5], 15: [0, 1, 2, 3, 4, 5, 6, 7], 16: [0, 1, 2, 3, 4, 5, 6, 7],
+            17: [0, 1, 2, 3, 4, 5, 6, 7]
+        },
+    ),
+
+    'back_thu_cluster': Namespace(
+        atom_to_orbitals_map={
+            1: 'ssp', 3: 'ssspp', 5: 'sssppd', 6: 'sssppd', 7: 'sssppd',
+            8: 'sssppd', 9: 'sssppd', 15: 'sssspppd', 16: 'sssspppd', 17: 'sssspppd'
+        },
+        orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
+        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
+        orbital_order_map={
+            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 5: [0, 1, 2, 3, 4, 5],
+            6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5], 8: [0, 1, 2, 3, 4, 5],
+            9: [0, 1, 2, 3, 4, 5], 15: [0, 1, 2, 3, 4, 5, 6, 7], 16: [0, 1, 2, 3, 4, 5, 6, 7],
+            17: [0, 1, 2, 3, 4, 5, 6, 7]
+        },
+    ),
+    'dptb2qhnet': Namespace(
+        atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
+        orbital_idx_map={'s': [0], 'p': [0, 1, 2], 'd': [0, 1, 2, 3, 4]},
         orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
         orbital_order_map={
             1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
@@ -26,19 +112,6 @@ convention_dict = {
         },
     ),
 
-    'thu_cluster': Namespace(
-        atom_to_orbitals_map={
-            1: 'ssp', 3: 'ssspp', 5: 'sssppd', 6: 'sssppd', 7: 'sssppd',
-            8: 'sssppd', 9: 'sssppd', 15: 'sssspppd', 16: 'sssspppd'
-        },
-        orbital_idx_map={'s': [0], 'p': [1, 2, 0], 'd': [0, 1, 2, 3, 4]},
-        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
-        orbital_order_map={
-            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 5: [0, 1, 2, 3, 4, 5],
-            6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5], 8: [0, 1, 2, 3, 4, 5],
-            9: [0, 1, 2, 3, 4, 5], 15: [0, 1, 2, 3, 4, 5, 6, 7], 16: [0, 1, 2, 3, 4, 5, 6, 7]
-        },
-    ),
 
     'gau_def2svp_2_pyscf': Namespace(
         atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
@@ -60,15 +133,7 @@ convention_dict = {
             8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         },
     ),
-    'back2pyscf': Namespace(
-        atom_to_orbitals_map={1: 'ssp', 3: 'ssspp', 6: 'sssppd', 7: 'sssppd', 8: 'sssppd', 9: 'sssppd'},
-        orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
-        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
-        orbital_order_map={
-            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5],
-            8: [0, 1, 2, 3, 4, 5], 9: [0, 1, 2, 3, 4, 5]
-        }
-    ),
+
     'back_2_thu_pyscf': Namespace(
         atom_to_orbitals_map={1: 'sssp', 3: 'sssssppppd', 6: 'sssssppppd', 7: 'sssssppppd', 8: 'sssssppppd',
                               9: 'sssssppppd'},
@@ -80,19 +145,9 @@ convention_dict = {
             8: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         },
     ),
-    'back_thu_cluster': Namespace(
-        atom_to_orbitals_map={
-            1: 'ssp', 3: 'ssspp', 5: 'sssppd', 6: 'sssppd', 7: 'sssppd',
-            8: 'sssppd', 9: 'sssppd', 15: 'sssspppd', 16: 'sssspppd'
-        },
-        orbital_idx_map={'s': [0], 'p': [2, 0, 1], 'd': [0, 1, 2, 3, 4]},
-        orbital_sign_map={'s': [1], 'p': [1, 1, 1], 'd': [1, 1, 1, 1, 1]},
-        orbital_order_map={
-            1: [0, 1, 2], 3: [0, 1, 2, 3, 4], 5: [0, 1, 2, 3, 4, 5],
-            6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5], 8: [0, 1, 2, 3, 4, 5],
-            9: [0, 1, 2, 3, 4, 5], 15: [0, 1, 2, 3, 4, 5, 6, 7], 16: [0, 1, 2, 3, 4, 5, 6, 7]
-        },
-    ),
+
+
+
 }
 
 _ORB_DIM = {'s': 1, 'p': 3, 'd': 5}
@@ -179,7 +234,7 @@ class CustomizedQH9Stable(InMemoryDataset):
             self.orbital_mask[3] = orbital_mask_li
             for z in [5, 6, 7, 8, 9]:
                 self.orbital_mask[z] = orbital_mask_3s2p1d
-            for z in [15, 16]:
+            for z in [15, 16, 17]:
                 self.orbital_mask[z] = orbital_mask_full
 
         else:
